@@ -43,13 +43,67 @@ double Array::ReadCell(int x, int y) {
 	if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(**cell)) {	// Analog eNVM
 		double readVoltage = static_cast<eNVM*>(cell[x][y])->readVoltage;
 		double totalWireResistance;
+		if (static_cast<AnalogNVM*>(cell[x][y])->PCMON) {
+			if (static_cast<eNVM*>(cell[x][y])->cmosAccess) {
+				if (static_cast<AnalogNVM*>(cell[x][y])->FeFET) {	// FeFET
+					totalWireResistance = (x + 1) * wireResistanceRow + (arrayRowSize - y) * wireResistanceCol;
+				}
+				else {	// Normal
+					totalWireResistance = (x + 1) * wireResistanceRow + (arrayRowSize - y) * wireResistanceCol + static_cast<eNVM*>(cell[x][y])->resistanceAccess;
+					// 2개의 cell이 이루므로
+				}
+			}
+			else {
+				totalWireResistance = (x + 1) * wireResistanceRow + (arrayRowSize - y) * wireResistanceCol;
+			}
+			double cellCurrentGp;
+			double cellCurrentGn;
+			double cellCurrentRef;
+			double cellCurrent;
+			if (static_cast<eNVM*>(cell[x][y])->nonlinearIV) {
+				/* Bisection method to calculate read current with nonlinearity */
+				int maxIter = 30;
+				double v1 = 0, v2 = readVoltage, v3;
+				double wireCurrent;
+				for (int iter = 0; iter < maxIter; iter++) {
+					//printf("iter: %d, %f\t%f\n", iter, v1, v2);
+					v3 = (v1 + v2) / 2;
+					wireCurrent = (readVoltage - v3) / totalWireResistance;
+					cellCurrent = static_cast<AnalogNVM*>(cell[x][y])->Read(v3);
+					if (wireCurrent > cellCurrent)
+						v1 = v3;
+					else
+						v2 = v3;
+				}
+			}
+			else {	// No nonlinearity
+				if (static_cast<eNVM*>(cell[x][y])->readNoise) {
+					extern std::mt19937 gen;
+					cellCurrentGp = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGp * (1 + (*static_cast<eNVM*>(cell[x][y])->gaussian_dist)(gen)) + totalWireResistance);
+					cellCurrentGn = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGn * (1 + (*static_cast<eNVM*>(cell[x][y])->gaussian_dist)(gen)) + totalWireResistance);
+					cellCurrentRef = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceRef);
+					cellCurrent = cellCurrentGp-cellCurrentGn+cellCurrentRef;
+	
+				}
+				else {
+					cellCurrentGp = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGp + totalWireResistance);
+					cellCurrentGn= readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGn + totalWireResistance);
+					cellCurrentRef = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceRef);
+					cellCurrent = cellCurrentGp-cellCurrentGn+cellCurrentRef;
+				}
+			}
+			return cellCurrent;
+		}
+		else {
 		if (static_cast<eNVM*>(cell[x][y])->cmosAccess) {
 			if (static_cast<AnalogNVM*>(cell[x][y])->FeFET) {	// FeFET
 				totalWireResistance = (x + 1) * wireResistanceRow + (arrayRowSize - y) * wireResistanceCol;
-			} else {	// Normal
+			}
+			else {	// Normal
 				totalWireResistance = (x + 1) * wireResistanceRow + (arrayRowSize - y) * wireResistanceCol + static_cast<eNVM*>(cell[x][y])->resistanceAccess;
 			}
-		} else {
+		}
+		else {
 			totalWireResistance = (x + 1) * wireResistanceRow + (arrayRowSize - y) * wireResistanceCol;
 		}
 		double cellCurrent;
@@ -58,27 +112,31 @@ double Array::ReadCell(int x, int y) {
 			int maxIter = 30;
 			double v1 = 0, v2 = readVoltage, v3;
 			double wireCurrent;
-			for (int iter=0; iter<maxIter; iter++) {
+			for (int iter = 0; iter < maxIter; iter++) {
 				//printf("iter: %d, %f\t%f\n", iter, v1, v2);
-				v3 = (v1 + v2)/2;
-				wireCurrent = (readVoltage - v3)/totalWireResistance;
+				v3 = (v1 + v2) / 2;
+				wireCurrent = (readVoltage - v3) / totalWireResistance;
 				cellCurrent = static_cast<AnalogNVM*>(cell[x][y])->Read(v3);
 				if (wireCurrent > cellCurrent)
 					v1 = v3;
 				else
 					v2 = v3;
 			}
-		} else {	// No nonlinearity
+		}
+		else {	// No nonlinearity
 			if (static_cast<eNVM*>(cell[x][y])->readNoise) {
 				extern std::mt19937 gen;
-				cellCurrent = readVoltage / (1/static_cast<eNVM*>(cell[x][y])->conductance * (1 + (*static_cast<eNVM*>(cell[x][y])->gaussian_dist)(gen)) + totalWireResistance);
-			} else {
-				cellCurrent = readVoltage / (1/static_cast<eNVM*>(cell[x][y])->conductance + totalWireResistance);
+				cellCurrent = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductance * (1 + (*static_cast<eNVM*>(cell[x][y])->gaussian_dist)(gen)) + totalWireResistance);
+			}
+			else {
+				cellCurrent = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductance + totalWireResistance);
 			}
 		}
 		return cellCurrent;
 
-	} else {	// SRAM or digital eNVM
+	}
+}
+ else {	// SRAM or digital eNVM
 		int weightDigits = 0;
 		if (DigitalNVM *temp = dynamic_cast<DigitalNVM*>(**cell)) {	// Digital eNVM
 			for (int n=0; n<numCellPerSynapse; n++) {   // n=0 is LSB
@@ -137,19 +195,52 @@ void Array::WriteCell(int x, int y, double deltaWeight, double maxWeight, double
 	// TODO: include wire resistance
 	double deltaWeightNormalized = deltaWeight / (maxWeight - minWeight);
 	if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(**cell)) { // Analog eNVM
-		if (regular) {	// Regular write
-			static_cast<AnalogNVM*>(cell[x][y])->Write(deltaWeightNormalized);
-		} else {	// Preparation stage (ideal write)
-			double conductance = static_cast<eNVM*>(cell[x][y])->conductance;
-			double maxConductance = static_cast<eNVM*>(cell[x][y])->maxConductance;
-			double minConductance = static_cast<eNVM*>(cell[x][y])->minConductance;
-			conductance += deltaWeightNormalized * (maxConductance - minConductance);
-			if (conductance > maxConductance) {
-				conductance = maxConductance;
-			} else if (conductance < minConductance) {
-				conductance = minConductance;
+		if (static_cast<AnalogNVM*>(cell[x][y])->PCMON) {
+			if (regular) {	// Regular write
+				static_cast<AnalogNVM*>(cell[x][y])->Write(deltaWeightNormalized);
 			}
-			static_cast<eNVM*>(cell[x][y])->conductance = conductance;
+			else {	// Preparation stage (ideal write)
+				double conductance = static_cast<eNVM*>(cell[x][y])->conductance;
+				double conductanceGp = static_cast<eNVM*>(cell[x][y])->conductanceGp;
+				double conductanceGn = static_cast<eNVM*>(cell[x][y])->conductanceGn;
+				double maxConductance = static_cast<eNVM*>(cell[x][y])->maxConductance- static_cast<eNVM*>(cell[x][y])->minConductance;
+				double minConductance = static_cast<eNVM*>(cell[x][y])->minConductance- static_cast<eNVM*>(cell[x][y])->maxConductance;
+				double conductanceRef = static_cast<eNVM*>(cell[x][y])->conductanceRef;
+				if (deltaWeightNormalized > 0) {
+					conductanceGp += deltaWeightNormalized * (maxConductance - minConductance) * 2;
+					if(conductanceGp>maxConductance){
+						conductanceGp = maxConductance;
+					}
+					static_cast<eNVM*>(cell[x][y])->conductanceGp = conductanceGp;
+				}
+				else {
+					conductanceGn += deltaWeightNormalized * (maxConductance - minConductance) * 2;
+					if (conductanceGn > maxConductance) {
+						conductanceGn = maxConductance;
+					}
+					static_cast<eNVM*>(cell[x][y])->conductanceGn = conductanceGn;
+				}
+				conductance = conductanceGp - conductanceGn + conductanceRef;
+				static_cast<eNVM*>(cell[x][y])->conductance = conductance;
+			}
+		}
+		else {
+			if (regular) {	// Regular write
+				static_cast<AnalogNVM*>(cell[x][y])->Write(deltaWeightNormalized);
+			}
+			else {	// Preparation stage (ideal write)
+				double conductance = static_cast<eNVM*>(cell[x][y])->conductance;
+				double maxConductance = static_cast<eNVM*>(cell[x][y])->maxConductance;
+				double minConductance = static_cast<eNVM*>(cell[x][y])->minConductance;
+				conductance += deltaWeightNormalized * (maxConductance - minConductance);
+				if (conductance > maxConductance) {
+					conductance = maxConductance;
+				}
+				else if (conductance < minConductance) {
+					conductance = minConductance;
+				}
+				static_cast<eNVM*>(cell[x][y])->conductance = conductance;
+			}
 		}
 	} else {    // SRAM or digital eNVM
 		int numLevel = pow(2, numCellPerSynapse);
@@ -209,11 +300,25 @@ double Array::ConductanceToWeight(int x, int y, double maxWeight, double minWeig
 			I = Imin;
 		else if (I>Imax)
 			I = Imax;
-		return (I-Imin) / (Imax-Imin) * (maxWeight-minWeight) + minWeight;
+		return (I-Imin) / (Imax-Imin) * (maxWeight-minWeight) + minWeight; // 0+1*(2*(I-Imin)/(readVoltage*(max-min))
 	} else {	// SRAM or digital eNVM
 		double weightDigits = this->ReadCell(x, y);
 		int weightDigitsMax = pow(2, numCellPerSynapse) - 1;
 		return (weightDigits / weightDigitsMax) * (maxWeight - minWeight) + minWeight;
 	}
 }
+
+void Array::EraseCell(int x, int y, double maxWeight, double minWeight) {
+	if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(**cell)) {
+		if (static_cast<AnalogNVM*>(this->cell[x][y])->PCMON) {
+			static_cast<AnalogNVM*>(cell[x][y])->Erase();
+		}
+	}
+}
+
+void Array::ReWriteCell(int x, int y, double deltaWeight, double maxWeight, double minWeight)
+{
+	static_cast<AnalogNVM*>(cell[x][y])->ReWrite(deltaWeight);
+}
+
 

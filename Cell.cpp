@@ -1,3 +1,4 @@
+
 /*******************************************************************************
 * Copyright (c) 2015-2017
 * School of Electrical, Computer and Energy Engineering, Arizona State University
@@ -40,45 +41,113 @@
 #include "formula.h"
 #include "Cell.h"
 
+double AnalogNVM::GetMaxReadCurrent()
+{
+	if (PCMON) {
+		return readVoltage * (PCMavgMaxConductance+conductanceRef);
+	}
+	else {
+		return readVoltage * avgMaxConductance;
+	}
+}
+
+double AnalogNVM::GetMinReadCurrent()
+{
+	if (PCMON) {
+		return readVoltage * (PCMavgMinConductance+conductanceRef);
+	}
+	else {
+		return readVoltage * avgMinConductance;
+	}
+}
+
 /* General eNVM */
 void AnalogNVM::WriteEnergyCalculation(double wireCapCol) {
+	if (PCMON) {
+		if (numPulse > 0) {
+			writeEnergy = writeVoltageLTP * writeVoltageLTP * (conductanceGpPrev + conductanceGp) / 2 * writePulseWidthLTP * numPulse;
+			writeEnergy += writeVoltageLTP * writeVoltageLTP * wireCapCol * numPulse;
+			if (!cmosAccess) {	// Crossbar
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
+				}
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGpPrev * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGnPrev * writeLatencyLTP;
+			}
+	}
+		else if(numPulse<0){
+			writeEnergy = writeVoltageLTP * writeVoltageLTP * (conductanceGnPrev + conductanceGn) / 2 * writePulseWidthLTP * numPulse;
+			writeEnergy += writeVoltageLTP * writeVoltageLTP * wireCapCol * numPulse;
+			if (!cmosAccess) {	// Crossbar
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
+				}
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGnPrev * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGpPrev * writeLatencyLTP;
+			}
+		}
+		else {    // Half-selected during both LTP and LTD phases
+			if (!cmosAccess) {	// Crossbar
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
+					writeVoltageLTD = VinitLTD + (VinitLTD + VstepLTD * maxNumLevelLTD);
+				}
+				writeEnergy = writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGpPrev * writeLatencyLTP;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGnPrev * writeLatencyLTP;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+			}
+			else {	// 1T1R
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + VstepLTP * maxNumLevelLTP;
+				}
+				writeEnergy = writeVoltageLTP * writeVoltageLTP * wireCapCol;
+			}
+		}
+	}
+	else {
 	if (nonlinearIV) {  // Currently only for cross-point array
 		/* I-V nonlinearity */
 		double conductancePrevAtVwLTP = NonlinearConductance(conductancePrev, NL, writeVoltageLTP, readVoltage, writeVoltageLTP);
-		double conductancePrevAtHalfVwLTP = NonlinearConductance(conductancePrev, NL, writeVoltageLTP, readVoltage, writeVoltageLTP/2);
+		double conductancePrevAtHalfVwLTP = NonlinearConductance(conductancePrev, NL, writeVoltageLTP, readVoltage, writeVoltageLTP / 2);
 		double conductancePrevAtVwLTD = NonlinearConductance(conductancePrev, NL, writeVoltageLTD, readVoltage, writeVoltageLTD);
-		double conductancePrevAtHalfVwLTD = NonlinearConductance(conductancePrev, NL, writeVoltageLTD, readVoltage, writeVoltageLTD/2);
+		double conductancePrevAtHalfVwLTD = NonlinearConductance(conductancePrev, NL, writeVoltageLTD, readVoltage, writeVoltageLTD / 2);
 		conductanceAtVwLTP = NonlinearConductance(conductance, NL, writeVoltageLTP, readVoltage, writeVoltageLTP);
-		conductanceAtHalfVwLTP = NonlinearConductance(conductance, NL, writeVoltageLTP, readVoltage, writeVoltageLTP/2);
+		conductanceAtHalfVwLTP = NonlinearConductance(conductance, NL, writeVoltageLTP, readVoltage, writeVoltageLTP / 2);
 		conductanceAtVwLTD = NonlinearConductance(conductance, NL, writeVoltageLTD, readVoltage, writeVoltageLTD);
-		conductanceAtHalfVwLTD = NonlinearConductance(conductance, NL, writeVoltageLTD, readVoltage, writeVoltageLTD/2);
+		conductanceAtHalfVwLTD = NonlinearConductance(conductance, NL, writeVoltageLTD, readVoltage, writeVoltageLTD / 2);
 		if (numPulse > 0) { // If the cell needs LTP pulses
-			writeEnergy = writeVoltageLTP * writeVoltageLTP * (conductancePrevAtVwLTP+conductanceAtVwLTP)/2 * writePulseWidthLTP * numPulse;
+			writeEnergy = writeVoltageLTP * writeVoltageLTP * (conductancePrevAtVwLTP + conductanceAtVwLTP) / 2 * writePulseWidthLTP * numPulse;
 			writeEnergy += writeVoltageLTP * writeVoltageLTP * wireCapCol * numPulse;
 			if (nonIdenticalPulse) {
 				writeVoltageLTD = VinitLTD + (VinitLTD + VstepLTD * maxNumLevelLTD);
 			}
-			writeEnergy += writeVoltageLTD/2 * writeVoltageLTD/2 * conductanceAtHalfVwLTD * writeLatencyLTD;    // Half-selected during LTD phase (use the new conductance value if LTP phase is before LTD phase)
-			writeEnergy += writeVoltageLTD/2 * writeVoltageLTD/2 * wireCapCol;
-		} else if (numPulse < 0) {  // If the cell needs LTD pulses
+			writeEnergy += writeVoltageLTD / 2 * writeVoltageLTD / 2 * conductanceAtHalfVwLTD * writeLatencyLTD;    // Half-selected during LTD phase (use the new conductance value if LTP phase is before LTD phase)
+			writeEnergy += writeVoltageLTD / 2 * writeVoltageLTD / 2 * wireCapCol;
+		}
+		else if (numPulse < 0) {  // If the cell needs LTD pulses
 			if (nonIdenticalPulse) {
 				writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
 			}
-			writeEnergy = writeVoltageLTP/2 * writeVoltageLTP/2 * conductancePrevAtHalfVwLTP * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
-			writeEnergy += writeVoltageLTP/2 * writeVoltageLTP/2 * wireCapCol;
+			writeEnergy = writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductancePrevAtHalfVwLTP * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
+			writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
 			writeEnergy += writeVoltageLTD * writeVoltageLTD * wireCapCol * (-numPulse);
-			writeEnergy += writeVoltageLTD * writeVoltageLTD * (conductancePrevAtVwLTD+conductanceAtVwLTD)/2 * writePulseWidthLTD * (-numPulse);
-		} else {    // Half-selected during both LTP and LTD phases
+			writeEnergy += writeVoltageLTD * writeVoltageLTD * (conductancePrevAtVwLTD + conductanceAtVwLTD) / 2 * writePulseWidthLTD * (-numPulse);
+		}
+		else {    // Half-selected during both LTP and LTD phases
 			if (nonIdenticalPulse) {
 				writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
 				writeVoltageLTD = VinitLTD + (VinitLTD + VstepLTD * maxNumLevelLTD);
 			}
-			writeEnergy = writeVoltageLTP/2 * writeVoltageLTP/2 * conductancePrevAtHalfVwLTP * writeLatencyLTP;
-			writeEnergy += writeVoltageLTP/2 * writeVoltageLTP/2 * wireCapCol;
-			writeEnergy += writeVoltageLTD/2 * writeVoltageLTD/2 * conductancePrevAtHalfVwLTD * writeLatencyLTD;
-			writeEnergy += writeVoltageLTD/2 * writeVoltageLTD/2 * wireCapCol;
+			writeEnergy = writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductancePrevAtHalfVwLTP * writeLatencyLTP;
+			writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+			writeEnergy += writeVoltageLTD / 2 * writeVoltageLTD / 2 * conductancePrevAtHalfVwLTD * writeLatencyLTD;
+			writeEnergy += writeVoltageLTD / 2 * writeVoltageLTD / 2 * wireCapCol;
 		}
-	} else {    // If not cross-point array or not considering I-V nonlinearity
+	}
+	else {    // If not cross-point array or not considering I-V nonlinearity
 		if (FeFET) {	// FeFET structure
 			if (cmosAccess) {
 				if (numPulse > 0) { // If the cell needs LTP pulses
@@ -87,60 +156,167 @@ void AnalogNVM::WriteEnergyCalculation(double wireCapCol) {
 						writeVoltageLTD = VinitLTD + VstepLTD * maxNumLevelLTD;
 					}
 					writeEnergy += writeVoltageLTD * writeVoltageLTD * (gateCapFeFET + wireCapCol);
-				} else if (numPulse < 0) {  // If the cell needs LTD pulses
+				}
+				else if (numPulse < 0) {  // If the cell needs LTD pulses
 					writeEnergy = writeVoltageLTD * writeVoltageLTD * (gateCapFeFET + wireCapCol) * (-numPulse);
-				} else {    // Half-selected during both LTP and LTD phases
+				}
+				else {    // Half-selected during both LTP and LTD phases
 					if (nonIdenticalPulse) {
 						writeVoltageLTD = VinitLTD + VstepLTD * maxNumLevelLTD;
+	
+					
 					}
 					writeEnergy = writeVoltageLTD * writeVoltageLTD * (gateCapFeFET + wireCapCol);
 				}
-			} else {
+			}
+			else {
 				puts("FeFET structure is not compatible with crossbar");
 				exit(-1);
 			}
-		} else {
+		}
+		else {
 			if (numPulse > 0) { // If the cell needs LTP pulses
-				writeEnergy = writeVoltageLTP * writeVoltageLTP * (conductancePrev+conductance)/2 * writePulseWidthLTP * numPulse;
+				writeEnergy = writeVoltageLTP * writeVoltageLTP * (conductancePrev + conductance) / 2 * writePulseWidthLTP * numPulse;
 				writeEnergy += writeVoltageLTP * writeVoltageLTP * wireCapCol * numPulse;
 				if (!cmosAccess) {	// Crossbar
 					if (nonIdenticalPulse) {
 						writeVoltageLTD = VinitLTD + (VinitLTD + VstepLTD * maxNumLevelLTD);
 					}
-					writeEnergy += writeVoltageLTD/2 * writeVoltageLTD/2 * conductance * writeLatencyLTD;    // Half-selected during LTD phase (use the new conductance value if LTP phase is before LTD phase)
-					writeEnergy += writeVoltageLTD/2 * writeVoltageLTD/2 * wireCapCol;
+					writeEnergy += writeVoltageLTD / 2 * writeVoltageLTD / 2 * conductance * writeLatencyLTD;    // Half-selected during LTD phase (use the new conductance value if LTP phase is before LTD phase)
+					writeEnergy += writeVoltageLTD / 2 * writeVoltageLTD / 2 * wireCapCol;
 				}
-			} else if (numPulse < 0) {  // If the cell needs LTD pulses
+			}
+			else if (numPulse < 0) {  // If the cell needs LTD pulses
 				if (!cmosAccess) {	// Crossbar
 					if (nonIdenticalPulse) {
 						writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
 					}
-					writeEnergy = writeVoltageLTP/2 * writeVoltageLTP/2 * conductancePrev * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
-					writeEnergy += writeVoltageLTP/2 * writeVoltageLTP/2 * wireCapCol;
-				} else {	// 1T1R
+					writeEnergy = writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductancePrev * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
+					writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+				}
+				else {	// 1T1R
 					if (nonIdenticalPulse) {
 						writeVoltageLTP = VinitLTP + VstepLTP * maxNumLevelLTP;
 					}
 					writeEnergy = writeVoltageLTP * writeVoltageLTP * wireCapCol;
 				}
 				writeEnergy += writeVoltageLTD * writeVoltageLTD * wireCapCol * (-numPulse);
-				writeEnergy += writeVoltageLTD * writeVoltageLTD * (conductancePrev+conductance)/2 * writePulseWidthLTD * (-numPulse);
-			} else {    // Half-selected during both LTP and LTD phases
+				writeEnergy += writeVoltageLTD * writeVoltageLTD * (conductancePrev + conductance) / 2 * writePulseWidthLTD * (-numPulse);
+			}
+			else {    // Half-selected during both LTP and LTD phases
 				if (!cmosAccess) {	// Crossbar
 					if (nonIdenticalPulse) {
 						writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
 						writeVoltageLTD = VinitLTD + (VinitLTD + VstepLTD * maxNumLevelLTD);
 					}
-					writeEnergy = writeVoltageLTP/2 * writeVoltageLTP/2 * conductancePrev * writeLatencyLTP;
-					writeEnergy += writeVoltageLTP/2 * writeVoltageLTP/2 * wireCapCol;
-					writeEnergy += writeVoltageLTD/2 * writeVoltageLTD/2 * conductancePrev * writeLatencyLTD;
-					writeEnergy += writeVoltageLTD/2 * writeVoltageLTD/2 * wireCapCol;
-				} else {	// 1T1R
+					writeEnergy = writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductancePrev * writeLatencyLTP;
+					writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+					writeEnergy += writeVoltageLTD / 2 * writeVoltageLTD / 2 * conductancePrev * writeLatencyLTD;
+					writeEnergy += writeVoltageLTD / 2 * writeVoltageLTD / 2 * wireCapCol;
+				}
+				else {	// 1T1R
 					if (nonIdenticalPulse) {
 						writeVoltageLTP = VinitLTP + VstepLTP * maxNumLevelLTP;
 					}
 					writeEnergy = writeVoltageLTP * writeVoltageLTP * wireCapCol;
 				}
+			}
+		}
+	}
+}
+}
+
+void AnalogNVM::EraseEnergyCalculation(double wireCapCol)
+{ //ERASE 시 RESET Energy calculation이 필요
+	if (PCMON) {
+		if (numPulse > 0) {
+			writeEnergy = RESETVoltage * RESETVoltage * (conductanceGpPrev + conductanceGp) / 2 * RESETPulseWidth * numPulse;
+			writeEnergy += RESETVoltage * RESETVoltage * wireCapCol * numPulse;
+			if (!cmosAccess) {	// Crossbar
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
+				}
+				writeEnergy += RESETVoltage/ 2 * RESETVoltage / 2 * conductanceGpPrev * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
+				writeEnergy += RESETVoltage / 2 * RESETVoltage / 2 * wireCapCol;
+				writeEnergy += RESETVoltage / 2 * RESETVoltage / 2 * conductanceGnPrev * writeLatencyLTP;
+			}
+		}
+		else if (numPulse < 0) {
+			writeEnergy = RESETVoltage * RESETVoltage * (conductanceGnPrev + conductanceGn) / 2 * RESETPulseWidth * numPulse;
+			writeEnergy += RESETVoltage * RESETVoltage * wireCapCol * numPulse;
+			if (!cmosAccess) {	// Crossbar
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
+				}
+				writeEnergy += RESETVoltage / 2 * RESETVoltage / 2 * conductanceGnPrev * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
+				writeEnergy += RESETVoltage / 2 * RESETVoltage / 2 * wireCapCol;
+				writeEnergy += RESETVoltage / 2 * RESETVoltage / 2 * conductanceGpPrev * writeLatencyLTP;
+			}
+		}
+		else {    // Half-selected during both LTP and LTD phases
+			if (!cmosAccess) {	// Crossbar
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
+					writeVoltageLTD = VinitLTD + (VinitLTD + VstepLTD * maxNumLevelLTD);
+				}
+				writeEnergy = RESETVoltage / 2 * RESETVoltage / 2 * conductanceGpPrev * writeLatencyLTP;
+				writeEnergy += RESETVoltage / 2 * RESETVoltage / 2 * wireCapCol;
+				writeEnergy += RESETVoltage / 2 * RESETVoltage / 2 * conductanceGnPrev * writeLatencyLTP;
+				writeEnergy += RESETVoltage / 2 * RESETVoltage / 2 * wireCapCol;
+			}
+			else {	// 1T1R
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + VstepLTP * maxNumLevelLTP;
+				}
+				writeEnergy = RESETVoltage * RESETVoltage * wireCapCol;
+			}
+		}
+	}
+}
+
+void AnalogNVM::ReWriteEnergyCalculation(double wireCapCol)
+{
+	if (PCMON) {
+		if (numPulse > 0) {
+			writeEnergy = writeVoltageLTP * writeVoltageLTP * (conductanceGpPrev + conductanceGp) / 2 * writePulseWidthLTP * numPulse;
+			writeEnergy += writeVoltageLTP * writeVoltageLTP * wireCapCol * numPulse;
+			if (!cmosAccess) {	// Crossbar
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
+				}
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGpPrev * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGnPrev * writeLatencyLTP;
+			}
+		}
+		else if (numPulse < 0) {
+			writeEnergy = writeVoltageLTP * writeVoltageLTP * (conductanceGnPrev + conductanceGn) / 2 * writePulseWidthLTP * numPulse;
+			writeEnergy += writeVoltageLTP * writeVoltageLTP * wireCapCol * numPulse;
+			if (!cmosAccess) {	// Crossbar
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
+				}
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGnPrev * writeLatencyLTP;    // Half-selected during LTP phase (use the old conductance value if LTP phase is before LTD phase)
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGpPrev * writeLatencyLTP;
+			}
+		}
+		else {    // Half-selected during both LTP and LTD phases
+			if (!cmosAccess) {	// Crossbar
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + (VinitLTP + VstepLTP * maxNumLevelLTP);
+					writeVoltageLTD = VinitLTD + (VinitLTD + VstepLTD * maxNumLevelLTD);
+				}
+				writeEnergy = writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGpPrev * writeLatencyLTP;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * conductanceGnPrev * writeLatencyLTP;
+				writeEnergy += writeVoltageLTP / 2 * writeVoltageLTP / 2 * wireCapCol;
+			}
+			else {	// 1T1R
+				if (nonIdenticalPulse) {
+					writeVoltageLTP = VinitLTP + VstepLTP * maxNumLevelLTP;
+				}
+				writeEnergy = writeVoltageLTP * writeVoltageLTP * wireCapCol;
 			}
 		}
 	}
@@ -260,7 +436,7 @@ RealDevice::RealDevice(int x, int y) {
 	readVoltage = 0.5;	// On-chip read voltage (Vr) (V)
 	readPulseWidth = 5e-9;	// Read pulse width (s) (will be determined by ADC)
 	writeVoltageLTP = 3.2;	// Write voltage (V) for LTP or weight increase
-	writeVoltageLTD = 2.8;	// Write voltage (V) for LTD or weight decrease
+	writeVoltageLTD = 3.2;	// Write voltage (V) for LTD or weight decrease
 	writePulseWidthLTP = 300e-6;	// Write pulse width (s) for LTP or weight increase
 	writePulseWidthLTD = 300e-6;	// Write pulse width (s) for LTD or weight decrease
 	writeEnergy = 0;	// Dynamic variable for calculation of write energy (J)
@@ -273,6 +449,14 @@ RealDevice::RealDevice(int x, int y) {
 	resistanceAccess = 15e3;	// The resistance of transistor (Ohm) in Pseudo-crossbar array when turned ON
 	nonlinearIV = false;	// Consider I-V nonlinearity or not (Currently for cross-point array only)
 	NL = 10;    // I-V nonlinearity in write scheme (the current ratio between Vw and Vw/2), assuming for the LTP side
+	//PCM properties
+	conductanceGn = minConductance;
+	conductanceGp = minConductance;
+	conductanceGpPrev = conductanceGp;
+	conductanceGnPrev = conductanceGn;
+	PCMavgMaxConductance = maxConductance - minConductance;
+	PCMavgMinConductance = minConductance - maxConductance;
+	conductanceRef = PCMavgMaxConductance;
 	if (nonlinearIV) {  // Currently for cross-point array only
 		double Vr_exp = readVoltage;  // XXX: Modify this value to Vr in the reported measurement data (can be different than readVoltage)
 		// Calculation of conductance at on-chip Vr
@@ -296,23 +480,30 @@ RealDevice::RealDevice(int x, int y) {
 	sigmaReadNoise = 0;		// Sigma of read noise in gaussian distribution
 	gaussian_dist = new std::normal_distribution<double>(0, sigmaReadNoise);	// Set up mean and stddev for read noise
 
-	
 	std::mt19937 localGen;	// It's OK not to use the external gen, since here the device-to-device vairation is a one-time deal
 	localGen.seed(std::time(0));
-	randomLimit = 0.3;
+	/*PCM Properties*/
+	PCMActivity = 0.3;
+	PCMActivityOn =false;
+	PCMON = true;
+	SaturationPCM = false;
+	RESETVoltage = 10;
+	RESETPulseWidth = 5e-9;
+	maxRESETLEVEL = 10;
 	/* Device-to-device weight update variation */
 	NL_LTP = 2.4;	// LTP nonlinearity
-	//NL_LTD = -4.88;	// LTD nonlinearity
-	NL_LTD = -2.4;
-	PCM_NL_LTD = -9;
-	PCM = false;
+	NL_LTD = -4.8;	// LTD nonlinearity
 	sigmaDtoD = 0;	// Sigma of device-to-device weight update vairation in gaussian distribution
 	gaussian_dist2 = new std::normal_distribution<double>(0, sigmaDtoD);	// Set up mean and stddev for device-to-device weight update vairation
 	paramALTP = getParamA(NL_LTP + (*gaussian_dist2)(localGen)) * maxNumLevelLTP;	// Parameter A for LTP nonlinearity
 	paramALTD = getParamA(NL_LTD + (*gaussian_dist2)(localGen)) * maxNumLevelLTD;	// Parameter A for LTD nonlinearity
-	paramPCM_NL_LTD= getParamA(PCM_NL_LTD + (*gaussian_dist2)(localGen)) * maxNumLevelLTD;
+	/*PCM weight update variation*/
+	NL_RESET = -9;
+	paramA_RESET = getParamA(NL_RESET + (*gaussian_dist2)(localGen))*maxRESETLEVEL;
+	RandGen.seed(std::time(0));
 	/* Cycle-to-cycle weight update variation */
 	sigmaCtoC = 0.035 * (maxConductance - minConductance);	// Sigma of cycle-to-cycle weight update vairation: defined as the percentage of conductance range
+	//sigmaCtoC = 0;
 	gaussian_dist3 = new std::normal_distribution<double>(0, sigmaCtoC);    // Set up mean and stddev for cycle-to-cycle weight update vairation
 
 	/* Conductance range variation */
@@ -358,54 +549,39 @@ double RealDevice::Read(double voltage) {	// Return read current (A)
 }
 
 void RealDevice::Write(double deltaWeightNormalized) {
-
 	double conductanceNew = conductance;	// =conductance if no update
-	if (PCM == true) {
-		std::random_device randd;
-		std::mt19937 gen(randd());
-		std::uniform_real_distribution<double> dist(0, 1);
-		randomCount = dist(gen);
-		if (deltaWeightNormalized > 0) {	// LTP
-		deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
-		numPulse = deltaWeightNormalized * maxNumLevelLTP;
-		if (nonlinearWrite) {
-			paramBLTP = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP/paramALTP));
-			xPulse = InvNonlinearWeight(conductance, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
-			conductanceNew = NonlinearWeight(xPulse+numPulse, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
-		} else {
-			xPulse = (conductance - minConductance) / (maxConductance - minConductance) * maxNumLevelLTP;
-			conductanceNew = (xPulse+numPulse) / maxNumLevelLTP * (maxConductance - minConductance) + minConductance;
-		}
-	} else {	// LTD
-			if (randomCount <= randomLimit) {
-				deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTD);
-				numPulse = deltaWeightNormalized * maxNumLevelLTD;	// will be a negative number
-				if (nonlinearWrite) {
-					paramBLTD = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTD / paramPCM_NL_LTD));
-					xPulse = InvNonlinearWeight(conductance, maxNumLevelLTD, paramPCM_NL_LTD, paramBLTD, minConductance);
-					conductanceNew = NonlinearWeight(xPulse + numPulse, maxNumLevelLTD, paramPCM_NL_LTD, paramBLTD, minConductance);
-				}
-				else {
-					xPulse = (conductance - minConductance) / (maxConductance - minConductance) * maxNumLevelLTD;
-					conductanceNew = (xPulse + numPulse) / maxNumLevelLTD * (maxConductance - minConductance) + minConductance;
-				}
+	double conductanceNewGp = conductanceGp;
+	double conductanceNewGn = conductanceGn;
+	if (PCMON) { //PCM
+	
+		if (deltaWeightNormalized > 0) { //Gp update
+			deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
+			numPulse = deltaWeightNormalized * maxNumLevelLTP;
+			if (nonlinearWrite) {
+				paramBLTP = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
+				xPulseGp = InvNonlinearWeight(conductanceGp, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
+				conductanceNewGp = InvNonlinearWeight(xPulseGp + numPulse, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
 			}
 			else {
-				deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTD);
-				numPulse = deltaWeightNormalized * maxNumLevelLTD;	// will be a negative number
-				if (nonlinearWrite) {
-					paramBLTD = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTD / paramALTD));
-					xPulse = InvNonlinearWeight(conductance, maxNumLevelLTD, paramALTD, paramBLTD, minConductance);
-					conductanceNew = NonlinearWeight(xPulse + numPulse, maxNumLevelLTD, paramALTD, paramBLTD, minConductance);
-				}
-				else {
-					xPulse = (conductance - minConductance) / (maxConductance - minConductance) * maxNumLevelLTD;
-					conductanceNew = (xPulse + numPulse) / maxNumLevelLTD * (maxConductance - minConductance) + minConductance;
-				}
+				xPulseGp = (conductanceGp - minConductance) / (maxConductance - minConductance)*maxNumLevelLTP;
+				conductanceNewGp = (xPulseGp + numPulse) / maxNumLevelLTP * (maxConductance - minConductance) + minConductance;
 			}
+		}
+		else { //Gn update
+			deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
+			numPulse = deltaWeightNormalized * maxNumLevelLTP;
+			if (nonlinearWrite) {
+				paramBLTP = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
+				xPulseGn = InvNonlinearWeight(conductanceGn, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
+				conductanceNewGn = InvNonlinearWeight(xPulseGn + numPulse, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
+			}
+			else {
+				xPulseGn = (conductanceGn - minConductance) / (maxConductance - minConductance)*maxNumLevelLTP;
+				conductanceNewGn = (xPulseGn + numPulse) / maxNumLevelLTP * (maxConductance - minConductance) + minConductance;
+			}
+		}
 	}
-	}
-	else {
+	else { //RRAM
 		if (deltaWeightNormalized > 0) {	// LTP
 			deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
 			numPulse = deltaWeightNormalized * maxNumLevelLTP;
@@ -433,18 +609,43 @@ void RealDevice::Write(double deltaWeightNormalized) {
 			}
 		}
 	}
-	
 	/* Cycle-to-cycle variation */
 	extern std::mt19937 gen;
-	if (sigmaCtoC && numPulse != 0) {
-		conductanceNew += (*gaussian_dist3)(gen) * sqrt(abs(numPulse));	// Absolute variation
+	if (PCMON) {
+		if (sigmaCtoC && numPulse != 0) {
+			if (numPulse > 0) {
+				conductanceNewGp += (*gaussian_dist3)(gen) * sqrt(abs(numPulse));	// Absolute variation
+				if (conductanceNewGp > maxConductance) {
+					conductanceNewGp = maxConductance;
+				}
+				else if (conductanceNewGp < minConductance) {
+					conductanceNewGp = minConductance;
+				}
+			}
+			else {
+				conductanceNewGn += (*gaussian_dist3)(gen)*sqrt(abs(numPulse));
+				if (conductanceNewGn > maxConductance) {
+					conductanceNewGn = maxConductance;
+				}
+				else if (conductanceNewGn < minConductance) {
+					conductanceNewGn = minConductance;
+				}
+			}
+		}
 	}
-	
-	if (conductanceNew > maxConductance) {
-		conductanceNew = maxConductance;
-	} else if (conductanceNew < minConductance) {
-		conductanceNew = minConductance;
+	else {
+		if (sigmaCtoC && numPulse != 0) {
+			conductanceNew += (*gaussian_dist3)(gen) * sqrt(abs(numPulse));	// Absolute variation
+		}
+
+		if (conductanceNew > maxConductance) {
+			conductanceNew = maxConductance;
+		}
+		else if (conductanceNew < minConductance) {
+			conductanceNew = minConductance;
+		}
 	}
+
 
 	/* Write latency calculation */
 	if (!nonIdenticalPulse) {	// Identical write pulse scheme
@@ -479,9 +680,93 @@ void RealDevice::Write(double deltaWeightNormalized) {
 			writePulseWidthLTD = writeLatencyLTD / (-numPulse);
 		}
 	}
+	if (PCMON) {
+		conductanceGpPrev = conductanceGp;
+		conductanceGnPrev = conductanceGn;
+		conductancePrev = conductance;
+		conductanceGp = conductanceNewGn;
+		conductanceGn = conductanceNewGn;
+		conductanceNew = conductanceGp - conductanceGn + conductanceRef;
+		conductance = conductanceNew; //conductance 0~ 2(max-minCon);
+	}
+	else {
+		conductancePrev = conductance;
+		conductance = conductanceNew;
+	}
+}
+
+void RealDevice::Erase()
+{
+	if (PCMON) {
+		numPulse = maxRESETLEVEL;
+		double conductancenewGp = minConductance;
+		double conductancenewGn = minConductance;
+		double conductancenew = conductance;
+		double conductanceRef = this->conductanceRef;
+
+		extern std::mt19937 gen;
+		if (sigmaCtoC != 0) {
+			conductancenewGp += (*gaussian_dist3)(gen)*sqrt(abs(numPulse));
+			conductancenewGn += (*gaussian_dist3)(gen)*sqrt(abs(numPulse));
+		}
+		if (conductancenewGp > maxConductance) {
+			conductancenewGp = maxConductance;
+		}
+		else if (conductancenewGn > maxConductance) {
+			conductancenewGn = maxConductance;
+		}
+		conductanceGpPrev = conductanceGp;
+		conductanceGnPrev = conductanceGn;
+		conductanceGp = conductancenewGp;
+		conductanceGn = conductancenewGn;
+		conductancePrev = conductance;
+		conductancenew = conductanceGp-conductanceGn+conductanceRef;
+		conductance = conductancenew;
 	
-	conductancePrev = conductance;
-	conductance = conductanceNew;
+
+	}
+}
+
+void RealDevice::ReWrite(double deltaWeightNormalized)
+{
+
+	this->numPulse = deltaWeightNormalized * maxNumLevelLTP;
+	if (numPulse > 0) { //Gp update
+		double conductancenewGp = conductanceGp;
+		double NL_LTP_A = getParamA(NL_LTP);
+		double NL_LTP_B = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / NL_LTP_A));
+		xPulseGp = InvNonlinearWeight(conductanceGp, maxNumLevelLTP, NL_LTP_A, NL_LTP_B, minConductance);
+		conductancenewGp = NonlinearWeight(xPulseGp + numPulse, maxNumLevelLTP, NL_LTP_A, NL_LTP_B, minConductance);
+
+		if (sigmaCtoC&&numPulse != 0) {
+			extern std::mt19937 gen;
+			conductancenewGp+=(*gaussian_dist3)(gen)*sqrt(abs(numPulse));
+		}
+		if (conductancenewGp > maxConductance) {
+			conductancenewGp = maxConductance;
+		}
+
+		conductanceGp = conductancenewGp;
+		conductance = conductanceGp - conductanceGn+conductanceRef;
+	}
+	else { // Gn update
+		double conductancenewGn = conductanceGn;
+		double NL_LTP_A = getParamA(NL_LTP);
+		double NL_LTP_B = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / NL_LTP_A));
+		xPulseGn = InvNonlinearWeight(conductanceGn, maxNumLevelLTP, NL_LTP_A, NL_LTP_B, minConductance);
+		conductancenewGn = NonlinearWeight(xPulseGn + numPulse, maxNumLevelLTP, NL_LTP_A, NL_LTP_B, minConductance);
+
+		if (sigmaCtoC&&numPulse != 0) {
+			extern std::mt19937 gen;
+			conductancenewGn += (*gaussian_dist3)(gen)*sqrt(abs(numPulse));
+		}
+		if (conductancenewGn > maxConductance) {
+			conductancenewGn = maxConductance;
+		}
+		conductanceGn = conductancenewGn;
+		conductance = conductanceGp - conductanceGn+conductanceRef;
+	}
+
 }
 
 /* Measured device */

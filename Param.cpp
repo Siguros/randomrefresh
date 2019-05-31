@@ -77,5 +77,7 @@ Param::Param() {
 	arrayWireWidth = 40;	// Array wire width (nm)
 	processNode = 14;	// Technology node (nm)
 	clkFreq = 2e9;		// Clock frequency (Hz)
+
+	numImageperRESET = 100;
 }
 

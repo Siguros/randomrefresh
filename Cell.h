@@ -88,6 +88,21 @@ public:
 	bool conductanceRangeVar;	// Consider variation of conductance range or not
 	double maxConductanceVar;	// Sigma of maxConductance variation (S)
 	double minConductanceVar;	// Sigma of minConductance variation (S)
+	/*PCM properties*/
+	double RESETVoltage;
+	double RESETPulseWidth;
+	double conductanceGp; // G+ conductacne
+	double conductanceGn; //G- conductance
+	double conductanceGpPrev;
+	double conductanceGnPrev;
+	double conductanceRef; // Refernce conductance for weight update
+	bool PCMActivityOn; // PCM activity true: probability of RESET (ERASE) operating false: default
+	double PCMActivity;
+	double PCMavgMaxConductance;
+	double PCMavgMinConductance;
+	double ThrConductance;
+	bool SaturationPCM;
+
 };
 
 class SRAM: public Cell {
@@ -127,12 +142,22 @@ public:
 	double PWinitLTD;   // Initial write pulse width for LTD or weight decrease (s)
 	double PWstepLTD;   // Write pulse width for LTD or weight decrease (s)
 	double writeVoltageSquareSum;   // Sum of V^2 of non-identical pulses (for weight update energy calculation in subcircuits)
+	
+    /*PCM properties*/
+	bool PCMON;
+	int maxRESETLEVEL;
+
 
 	virtual double Read(double voltage) = 0;
 	virtual void Write(double deltaWeightNormalized) = 0;
-	double GetMaxReadCurrent() {return readVoltage * avgMaxConductance;}
-	double GetMinReadCurrent() {return readVoltage * avgMinConductance;}
+	double GetMaxReadCurrent();
+	double GetMinReadCurrent();
 	void WriteEnergyCalculation(double wireCapCol);
+	void EraseEnergyCalculation(double wireCapCol);
+	void ReWriteEnergyCalculation(double wireCapCol);
+	/*PCM Function*/
+	virtual void Erase() = 0;
+	virtual void ReWrite(double deltaWeightNormalized) = 0;
 };
 
 class DigitalNVM: public eNVM {
@@ -165,16 +190,18 @@ public:
 	double sigmaDtoD;	// Sigma of device-to-device variation on weight update nonliearity baseline
 	double sigmaCtoC;	// Sigma of cycle-to-cycle variation on weight update
 
+	/*PCM properties*/
+	double xPulseGp;
+	double xPulseGn;
+	double NL_RESET;
+	double paramA_RESET;
+	double paramB_RESET;
+	std::mt19937 RandGen;
 	RealDevice(int x, int y);
 	double Read(double voltage);	// Return read current (A)
 	void Write(double deltaWeightNormalized);
-
-	// ADDITION 3.25
-	bool PCM;
-	double PCM_NL_LTD;
-	double paramPCM_NL_LTD;
-	double randomCount;
-	double randomLimit;
+	void Erase();
+	void ReWrite(double deltaWeightNormalized);
 };
 
 class MeasuredDevice: public AnalogNVM {

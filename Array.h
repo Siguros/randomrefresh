@@ -119,6 +119,8 @@ public:
 	void WriteCell(int x, int y, double deltaWeight, double maxWeight, double minWeight, bool regular);
 	double GetMaxCellReadCurrent(int x, int y);
 	double ConductanceToWeight(int x, int y, double maxWeight, double minWeight);
+	void EraseCell(int x, int y,double maxWeight,double minWeight);
+	void ReWriteCell(int x, int y, double deltaWeight, double maxWeight, double minWeight);
 };
 
 #endif
