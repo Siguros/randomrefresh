@@ -98,7 +98,7 @@ void WeightToConductance() {
 
 /* Mapping from analog current to digital output*/
 int CurrentToDigits(double I /* current */, double Imax /* max current */) {
-    return (int)(I / (Imax/param->pSumMaxHardware));
+    return (int)(I / (Imax/param->pSumMaxHardware)); //psumMaxhardware: 255
 }
 
 /* Mapping from hardware digital output to algorithm value*/

@@ -491,8 +491,8 @@ RealDevice::RealDevice(int x, int y) {
 	RESETPulseWidth = 5e-9;
 	maxRESETLEVEL = 10;
 	/* Device-to-device weight update variation */
-	NL_LTP = 2.4;	// LTP nonlinearity
-	NL_LTD = -4.8;	// LTD nonlinearity
+	NL_LTP = 1;	// LTP nonlinearity
+	NL_LTD = -1;	// LTD nonlinearity
 	sigmaDtoD = 0;	// Sigma of device-to-device weight update vairation in gaussian distribution
 	gaussian_dist2 = new std::normal_distribution<double>(0, sigmaDtoD);	// Set up mean and stddev for device-to-device weight update vairation
 	paramALTP = getParamA(NL_LTP + (*gaussian_dist2)(localGen)) * maxNumLevelLTP;	// Parameter A for LTP nonlinearity
@@ -730,8 +730,9 @@ void RealDevice::Erase()
 void RealDevice::ReWrite(double deltaWeightNormalized)
 {
 
-	this->numPulse = deltaWeightNormalized * maxNumLevelLTP;
-	if (numPulse > 0) { //Gp update
+	
+	if (deltaWeightNormalized > 0.5) { //Gp update
+		this->numPulse = 2*(deltaWeightNormalized-0.5) * maxNumLevelLTP;
 		double conductancenewGp = conductanceGp;
 		double NL_LTP_A = getParamA(NL_LTP);
 		double NL_LTP_B = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / NL_LTP_A));
@@ -749,7 +750,8 @@ void RealDevice::ReWrite(double deltaWeightNormalized)
 		conductanceGp = conductancenewGp;
 		conductance = conductanceGp - conductanceGn+conductanceRef;
 	}
-	else { // Gn update
+	else{ // Gn update
+		this->numPulse = 2 * (0.5-deltaWeightNormalized) * maxNumLevelLTP;
 		double conductancenewGn = conductanceGn;
 		double NL_LTP_A = getParamA(NL_LTP);
 		double NL_LTP_B = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / NL_LTP_A));
