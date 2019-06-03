@@ -321,6 +321,7 @@ void Train(const int numTrain, const int epochs) {
 							deltaWeight1[jj][k] = -param->alpha1 * s1[jj] * Input[i][k];
 							arrayIH->WriteCell(jj, k, deltaWeight1[jj][k], param->maxWeight, param->minWeight, true);
 							weight1[jj][k] = arrayIH->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight);
+
 							if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[jj][k])) {	// Analog eNVM
 								weightChangeBatch = weightChangeBatch || static_cast<AnalogNVM*>(arrayIH->cell[jj][k])->numPulse;
 								/* Get maxLatencyLTP and maxLatencyLTD */
@@ -539,6 +540,8 @@ void Train(const int numTrain, const int epochs) {
 						for (int jj = start; jj <= end; jj++) { // Selected cells
 							deltaWeight2[jj][k] = -param->alpha2 * s2[jj] * a1[k];
 							arrayHO->WriteCell(jj, k, deltaWeight2[jj][k], param->maxWeight, param->minWeight, true);
+							//double conductanceGp = static_cast<AnalogNVM*>(arrayHO->cell[jj][k])->conductanceGp;
+							//std::cout << conductanceGp << std::endl;
 							weight2[jj][k] = arrayHO->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight);
 							if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[jj][k])) { // Analog eNVM
 								weightChangeBatch = weightChangeBatch || static_cast<AnalogNVM*>(arrayHO->cell[jj][k])->numPulse;
@@ -704,6 +707,7 @@ void Train(const int numTrain, const int epochs) {
 					}
 					numWriteOperation += numWriteOperationPerRow;
 				}
+
 				arrayHO->writeEnergy += sumArrayWriteEnergy;
 				subArrayHO->writeDynamicEnergy += sumNeuroSimWriteEnergy;
 				numWriteOperation = numWriteOperation / param->nHide;
@@ -737,8 +741,6 @@ void Train(const int numTrain, const int epochs) {
 				 /*Read All first Layer*/
 						double maxConductance = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->maxConductance;
 						double ResetThr = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->ThrConductance;
-						std::fill_n(a1, param->nHide, 0);
-						std::fill_n(outN1, param->nHide, 0);
 						double sumArrayReadEnergy = 0; // Read Energy를 더할 임시 변수
 						double readVoltage = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->readVoltage;
 						double readPulseWidth = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->readPulseWidth;
@@ -784,8 +786,6 @@ void Train(const int numTrain, const int epochs) {
 						/*Read All Second Layer*/
 						maxConductance = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->maxConductance;
 						ResetThr = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->ThrConductance;
-						std::fill_n(a2, param->nOutput, 0);
-						std::fill_n(outN2, param->nOutput, 0);
 						sumArrayReadEnergy = 0; // Read Energy를 더할 임시 변수
 						readVoltage = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->readVoltage;
 						readPulseWidth = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->readPulseWidth;
@@ -810,7 +810,8 @@ void Train(const int numTrain, const int epochs) {
 										else if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->conductanceGn > ResetThr) {
 											static_cast<AnalogNVM*>(arrayHO->cell[j][k])->SaturationPCM = true;
 										}
-										else {
+										else
+										{
 											static_cast<AnalogNVM*>(arrayHO->cell[j][k])->SaturationPCM = false;
 
 										}
@@ -828,343 +829,344 @@ void Train(const int numTrain, const int epochs) {
 						subArrayHO->readLatency += NeuroSimSubArrayReadLatency(subArrayIH);
 						subArrayHO->readLatency += NeuroSimNeuronReadLatency(subArrayIH, adderIH, muxIH, muxDecoderIH, dffIH);
 
-						/*ERASE Opeartion*/
-						/*==================Erase First Layer===================*/
-						double sumArrayWriteEnergy = 0;
-						double sumNeuroSimWriteEnergy = 0;
-						double sumWriteLatencyAnalogPCM = 0;
-						double numWriteOperation = 0;
-						double RESETVoltage = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->RESETVoltage;
-						double RESETPulseWidth = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->RESETPulseWidth;
-#pragma omp parallel for reduction(+:sumArrayWriteEnergy,sumNeuroSimWriteEnergy,sumWriteLatencyAnalogPCM)
-						for (int k = 0; k < param->nInput; k++) {
-							int numWriteOperationPerRow = 0;
-							int numWriteCellPerOperation = 0;
-							double maxLatencyLTP = 0;
-							for (int j = 0; j < param->nHide; j++) {
-								if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->SaturationPCM) { //SET Saturation 된 경우 RESET operation을 진행
-									arrayIH->EraseCell(j, k, param->maxWeight, param->minWeight);
-									numWriteCellPerOperation += 1;
-									if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
-										maxLatencyLTP = static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeLatencyLTP;
-									}
-									if (param->writeEnergyReport) {
-										static_cast<AnalogNVM*>(arrayIH->cell[j][k])->EraseEnergyCalculation(arrayIH->wireCapCol);
-									}
-									sumArrayWriteEnergy += static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeEnergy;
-									/* Latency for each batch write in Analog eNVM */
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {	// Analog eNVM
-										sumWriteLatencyAnalogPCM += maxLatencyLTP;
-									}
-									/* Energy consumption on array caps for eNVM */
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
-										if (param->writeEnergyReport) {
-											if (static_cast<eNVM*>(arrayIH->cell[0][0])->cmosAccess) {  // 1T1R
-												// The energy on selected SLs is included in WriteCell()
-												sumArrayWriteEnergy += arrayIH->wireGateCapRow * techIH.vdd * techIH.vdd * 2;   // Selected WL (*2 means both LTP and LTD phases)
-												sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage * RESETVoltage;   // Selected BL (LTP phases)
-												sumArrayWriteEnergy += arrayIH->wireCapCol * RESETVoltage * RESETVoltage * (param->nHide - numBatchWriteSynapse);   // Unselected SLs (LTP phase)
-												// No LTD part because all unselected rows and columns are V=0
-											}
-											else {
-												sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage *RESETVoltage;    // Selected WL (LTP phase)
-												sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);  // Unselected WLs (LTP phase)
-												sumArrayWriteEnergy += arrayIH->wireCapCol *RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse);   // Unselected BLs (LTP phase)
-												sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);    // Unselected WLs (LTD phase)
-												sumArrayWriteEnergy += arrayIH->wireCapCol * RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse); // Unselected BLs (LTD phase)
-											}
-										}
-									}
-								}
-								/*Half selected Cell*/
-								else { //Saturation이 안된경우는 그냥 남아있음.
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
-										if (!static_cast<eNVM*>(arrayIH->cell[0][0])->cmosAccess && param->writeEnergyReport) { // Cross-point
-											sumArrayWriteEnergy += (RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP + RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP);
-										}
-									}
-								}
-							}
-						}
-
-						/* Calculate the average number of write pulses on the selected row */
-			//		#pragma omp critical    // Use critical here since NeuroSim class functions may update its member variables 문제가능성 큼
-			//	{
-			//		if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
-			//			int sumNumWritePulse = 0;
-			//			for (int j = 0; j < param->nHide; j++) {
-			//				sumNumWritePulse += abs(static_cast<AnalogNVM*>(arrayIH->cell[j][k])->numPulse);    // Note that LTD has negative pulse number/										}
-			//				subArrayIH->numWritePulse = sumNumWritePulse / param->nHide;
-			//				double writeVoltageSquareSumRow = 0;
-			//			}
-			//			numWriteCellPerOperation = (double)numWriteCellPerOperation / numWriteOperationPerRow;
-			//			sumNeuroSimWriteEnergy += NeuroSimSubArrayWriteEnergy(subArrayIH, numWriteOperationPerRow, numWriteCellPerOperation);
-			//		}
-			//		numWriteOperation += numWriteOperationPerRow;
-			//	}
-			//}
-						arrayIH->writeEnergy += sumArrayWriteEnergy;
-						subArrayIH->writeDynamicEnergy += sumNeuroSimWriteEnergy;
-						numWriteOperation = numWriteOperation / param->nInput;
-						subArrayIH->writeLatency += NeuroSimSubArrayWriteLatency(subArrayIH, numWriteOperation, sumWriteLatencyAnalogPCM);
-
-						/*==================Erase Second Layer===================*/
-						sumArrayWriteEnergy = 0;
-						sumNeuroSimWriteEnergy = 0;
-						sumWriteLatencyAnalogPCM = 0;
-						numWriteOperation = 0;
-						RESETVoltage = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->RESETVoltage;
-						RESETPulseWidth = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->RESETPulseWidth;
-#pragma omp parallel for reduction(+:sumArrayWriteEnergy,sumNeuroSimWriteEnergy,sumWriteLatencyAnalogPCM)
-						for (int k = 0; k < param->nHide; k++) {
-							int numWriteOperationPerRow = 0;
-							int numWriteCellPerOperation = 0;
-							double maxLatencyLTP = 0;
-							for (int j = 0; j < param->nOutput; j++) {
-
-								if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->SaturationPCM) { //SET Saturation 된 경우 RESET operation을 진행
-									//arrayHO->EraseCell(j, k, param->maxWeight, param->minWeight);
-									numWriteCellPerOperation += 1;
-									if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
-										maxLatencyLTP = static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP;
-									}
-									if (param->writeEnergyReport) {
-										//static_cast<AnalogNVM*>(arrayHO->cell[j][k])->EraseEnergyCalculation(arrayHO->wireCapCol);
-									}
-									sumArrayWriteEnergy += static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeEnergy;
-									/* Latency for each batch write in Analog eNVM */
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {	// Analog eNVM
-										sumWriteLatencyAnalogPCM += maxLatencyLTP;
-									}
-									/* Energy consumption on array caps for eNVM */
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
-										if (param->writeEnergyReport) {
-											if (static_cast<eNVM*>(arrayHO->cell[0][0])->cmosAccess) {  // 1T1R
-												// The energy on selected SLs is included in WriteCell()
-												sumArrayWriteEnergy += arrayHO->wireGateCapRow * techIH.vdd * techIH.vdd * 2;   // Selected WL (*2 means both LTP and LTD phases)
-												sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage * RESETVoltage;   // Selected BL (LTP phases)
-												sumArrayWriteEnergy += arrayHO->wireCapCol * RESETVoltage * RESETVoltage * (param->nHide - numBatchWriteSynapse);   // Unselected SLs (LTP phase)
-												// No LTD part because all unselected rows and columns are V=0
-											}
-											else {
-												sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage*RESETVoltage;    // Selected WL (LTP phase)
-												sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);  // Unselected WLs (LTP phase)
-												sumArrayWriteEnergy += arrayHO->wireCapCol *RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse);   // Unselected BLs (LTP phase)
-												sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);    // Unselected WLs (LTD phase)
-												sumArrayWriteEnergy += arrayHO->wireCapCol * RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse); // Unselected BLs (LTD phase)
-											}
-										}
-									}
-								}
-								/*Half selected Cell*/
-								else { //Saturation이 안된 경우
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
-										if ((!static_cast<eNVM*>(arrayHO->cell[0][0])->cmosAccess) && param->writeEnergyReport) { // Cross-point
-											sumArrayWriteEnergy += (RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayHO->cell[j][k])->conductance * maxLatencyLTP + RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP);
-
-										}
-									}
-								}
-							}
-						}
-						//			/* Calculate the average number of write pulses on the selected row */
-						//		#pragma omp critical    // Use critical here since NeuroSim class functions may update its member variables
-						//			{
-						//				if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
-						//					int sumNumWritePulse = 0;
-						//					for (int j = 0; j < param->nHide; j++) {
-						//						sumNumWritePulse += abs(static_cast<AnalogNVM*>(arrayHO->cell[j][k])->numPulse);    // Note that LTD has negative pulse number
-						//					}
-						//					subArrayHO->numWritePulse = sumNumWritePulse / param->nHide;
-						//					double writeVoltageSquareSumRow = 0;
-						//				}
-						//				numWriteCellPerOperation = (double)numWriteCellPerOperation / numWriteOperationPerRow;
-						//				sumNeuroSimWriteEnergy += NeuroSimSubArrayWriteEnergy(subArrayHO, numWriteOperationPerRow, numWriteCellPerOperation);
-						//			}
-						//			numWriteOperation += numWriteOperationPerRow;		
-						//}
-						arrayHO->writeEnergy += sumArrayWriteEnergy;
-						subArrayHO->writeDynamicEnergy += sumNeuroSimWriteEnergy;
-						numWriteOperation = numWriteOperation / param->nInput;
-						subArrayHO->writeLatency += NeuroSimSubArrayWriteLatency(subArrayHO, numWriteOperation, sumWriteLatencyAnalogPCM);
-
-						/*SET Operation*/
-						/*SET First Layer*/
-						sumArrayWriteEnergy = 0;
-						sumNeuroSimWriteEnergy = 0;
-						sumWriteLatencyAnalogPCM = 0;
-						numWriteOperation = 0;
-						double writeVoltageLTP = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->writeVoltageLTP;
-						double writePulseWidth = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->writePulseWidthLTP;
-#pragma omp parallel for reduction(+:sumArrayWriteEnergy,sumNeuroSimWriteEnergy,sumWriteLatencyAnalogPCM)
-						for (int k = 0; k < param->nInput; k++) {
-							for (int j = 0; j < param->nHide; j++) {
-								int numWriteOperationPerRow = 0;
-								int numWriteCellPerOperation = 0;
-								double maxLatencyLTP = 0;
-
-								if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->SaturationPCM) { //SET Saturation 된 경우 RESET operation을 진행
-									double conductancePrevGp = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->conductanceGpPrev;
-									double conductancePrevGn = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->conductanceGnPrev;
-									double weightGp = weight1[j][k];
-									arrayIH->ReWriteCell(j, k, weightGp, param->maxWeight, param->minWeight); // regular true: weight update 사용, false: 비례하여 update 
-									numWriteCellPerOperation += 1;
-									if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
-										maxLatencyLTP = static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeLatencyLTP;
-									}
-									if (param->writeEnergyReport) {
-										static_cast<AnalogNVM*>(arrayIH->cell[j][k])->WriteEnergyCalculation(arrayIH->wireCapCol);
-									}
-									sumArrayWriteEnergy += static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeEnergy;
-									/* Latency for each batch write in Analog eNVM */
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {	// Analog eNVM
-										sumWriteLatencyAnalogPCM += maxLatencyLTP;
-									}
-									/* Energy consumption on array caps for eNVM */
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
-										if (param->writeEnergyReport) {
-											if (static_cast<eNVM*>(arrayIH->cell[0][0])->cmosAccess) {  // 1T1R
-												// The energy on selected SLs is included in WriteCell()
-												sumArrayWriteEnergy += arrayIH->wireGateCapRow * techIH.vdd * techIH.vdd * 2;   // Selected WL (*2 means both LTP and LTD phases)
-												sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage * RESETVoltage;   // Selected BL (LTP phases)
-												sumArrayWriteEnergy += arrayIH->wireCapCol * RESETVoltage * RESETVoltage * (param->nHide - numBatchWriteSynapse);   // Unselected SLs (LTP phase)
-												// No LTD part because all unselected rows and columns are V=0
-											}
-											else {
-												sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage *RESETVoltage;    // Selected WL (LTP phase)
-												sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);  // Unselected WLs (LTP phase)
-												sumArrayWriteEnergy += arrayIH->wireCapCol *RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse);   // Unselected BLs (LTP phase)
-												sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);    // Unselected WLs (LTD phase)
-												sumArrayWriteEnergy += arrayIH->wireCapCol * RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse); // Unselected BLs (LTD phase)
-											}
-										}
-									}
-								}
-								/*Half selected Cell*/
-								else {
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
-										if ((!static_cast<eNVM*>(arrayIH->cell[0][0])->cmosAccess) && param->writeEnergyReport) { // Cross-point
-
-											sumArrayWriteEnergy += (RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP + RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP);
-
-
-										}
-									}
-								}
-							}
-							///* Calculate the average number of write pulses on the selected row */
-							//#pragma omp critical    // Use critical here since NeuroSim class functions may update its member variables
-							//{
-							//	if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
-							//		int sumNumWritePulse = 0;
-							//		for (int j = 0; j < param->nHide; j++) {
-							//			sumNumWritePulse += abs(static_cast<AnalogNVM*>(arrayIH->cell[j][k])->numPulse);    // Note that LTD has negative pulse number
-							//		}
-							//		subArrayIH->numWritePulse = sumNumWritePulse / param->nHide;
-							//		double writeVoltageSquareSumRow = 0;
-							//	}
-							//	numWriteCellPerOperation = (double)numWriteCellPerOperation / numWriteOperationPerRow;
-							//	sumNeuroSimWriteEnergy += NeuroSimSubArrayWriteEnergy(subArrayIH, numWriteOperationPerRow, numWriteCellPerOperation);
-							//}
-							//numWriteOperation += numWriteOperationPerRow;
-
-						}
-
-						arrayIH->writeEnergy += sumArrayWriteEnergy;
-						subArrayIH->writeDynamicEnergy += sumNeuroSimWriteEnergy;
-						numWriteOperation = numWriteOperation / param->nInput;
-						subArrayIH->writeLatency += NeuroSimSubArrayWriteLatency(subArrayIH, numWriteOperation, sumWriteLatencyAnalogPCM);
-
-						/*SET Second Layer*/
-						sumArrayWriteEnergy = 0;
-						sumNeuroSimWriteEnergy = 0;
-						sumWriteLatencyAnalogPCM = 0;
-						numWriteOperation = 0;
-						writeVoltageLTP = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->writeVoltageLTP;
-						writePulseWidth = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->writePulseWidthLTP;
-#pragma omp parallel for reduction(+:sumArrayWriteEnergy,sumNeuroSimWriteEnergy,sumWriteLatencyAnalogPCM)
-						for (int k = 0; k < param->nHide; k++) {
-							for (int j = 0; j < param->nOutput; j++) {
-								int numWriteOperationPerRow = 0;
-								int numWriteCellPerOperation = 0;
-								double maxLatencyLTP = 0;
-
-								if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->SaturationPCM) { //SET Saturation 된 경우 RESET operation을 진행
-									double conductancePrevGp = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->conductanceGpPrev;
-									double conductancePrevGn = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->conductanceGnPrev;
-									double weightGp = weight2[j][k];
-									arrayHO->ReWriteCell(j, k, weightGp, param->maxWeight, param->minWeight); // regular true: weight update 사용, false: 비례하여 update 
-									numWriteCellPerOperation += 1;
-									if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
-										maxLatencyLTP = static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP;
-									}
-									if (param->writeEnergyReport) {
-										static_cast<AnalogNVM*>(arrayHO->cell[j][k])->WriteEnergyCalculation(arrayHO->wireCapCol);
-									}
-									sumArrayWriteEnergy += static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeEnergy;
-									/* Latency for each batch write in Analog eNVM */
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {	// Analog eNVM
-										sumWriteLatencyAnalogPCM += maxLatencyLTP;
-									}
-									/* Energy consumption on array caps for eNVM */
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
-										if (param->writeEnergyReport) {
-											if (static_cast<eNVM*>(arrayHO->cell[0][0])->cmosAccess) {  // 1T1R
-												// The energy on selected SLs is included in WriteCell()
-												sumArrayWriteEnergy += arrayHO->wireGateCapRow * techIH.vdd * techIH.vdd * 2;   // Selected WL (*2 means both LTP and LTD phases)
-												sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage * RESETVoltage;   // Selected BL (LTP phases)
-												sumArrayWriteEnergy += arrayHO->wireCapCol * RESETVoltage * RESETVoltage * (param->nHide - numBatchWriteSynapse);   // Unselected SLs (LTP phase)
-												// No LTD part because all unselected rows and columns are V=0
-											}
-											else {
-												sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage *RESETVoltage;    // Selected WL (LTP phase)
-												sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);  // Unselected WLs (LTP phase)
-												sumArrayWriteEnergy += arrayHO->wireCapCol *RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse);   // Unselected BLs (LTP phase)
-												sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);    // Unselected WLs (LTD phase)
-												sumArrayWriteEnergy += arrayHO->wireCapCol * RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse); // Unselected BLs (LTD phase)
-											}
-										}
-									}
-								}
-								/*Half selected Cell*/
-								else {
-									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
-										if ((!static_cast<eNVM*>(arrayHO->cell[0][0])->cmosAccess) && param->writeEnergyReport) { // Cross-point
-
-											sumArrayWriteEnergy += (RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayHO->cell[j][k])->conductance * maxLatencyLTP + RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP);
-
-
-										}
-									}
-								}
-							}
-							//								/* Calculate the average number of write pulses on the selected row */
-							//#pragma omp critical    // Use critical here since NeuroSim class functions may update its member variables
-							//								{
-							//									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
-							//										int sumNumWritePulse = 0;
-							//										for (int j = 0; j < param->nHide; j++) {
-							//											sumNumWritePulse += abs(static_cast<AnalogNVM*>(arrayHO->cell[j][k])->numPulse);    // Note that LTD has negative pulse number
-							//										}
-							//										subArrayHO->numWritePulse = sumNumWritePulse / param->nHide;
-							//										double writeVoltageSquareSumRow = 0;
-							//									}
-							//									numWriteCellPerOperation = (double)numWriteCellPerOperation / numWriteOperationPerRow;
-							//									sumNeuroSimWriteEnergy += NeuroSimSubArrayWriteEnergy(subArrayHO, numWriteOperationPerRow, numWriteCellPerOperation);
-							//								}
-							//								numWriteOperation += numWriteOperationPerRow;
-
-
-						}
-						arrayHO->writeEnergy += sumArrayWriteEnergy;
-						subArrayHO->writeDynamicEnergy += sumNeuroSimWriteEnergy;
-						numWriteOperation = numWriteOperation / param->nInput;
-						subArrayHO->writeLatency += NeuroSimSubArrayWriteLatency(subArrayHO, numWriteOperation, sumWriteLatencyAnalogPCM);
-
-
+												/*ERASE Opeartion*/
+												/*==================Erase First Layer===================*/
+												double sumArrayWriteEnergy = 0;
+												double sumNeuroSimWriteEnergy = 0;
+												double sumWriteLatencyAnalogPCM = 0;
+												double numWriteOperation = 0;
+												double RESETVoltage = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->RESETVoltage;
+												double RESETPulseWidth = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->RESETPulseWidth;
+						#pragma omp parallel for reduction(+:sumArrayWriteEnergy,sumNeuroSimWriteEnergy,sumWriteLatencyAnalogPCM)
+												for (int k = 0; k < param->nInput; k++) {
+													int numWriteOperationPerRow = 0;
+													int numWriteCellPerOperation = 0;
+													double maxLatencyLTP = 0;
+													for (int j = 0; j < param->nHide; j++) {
+														if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->SaturationPCM) { //SET Saturation 된 경우 RESET operation을 진행
+															arrayIH->EraseCell(j, k, param->maxWeight, param->minWeight);
+															numWriteCellPerOperation += 1;
+															if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
+																maxLatencyLTP = static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeLatencyLTP;
+															}
+															if (param->writeEnergyReport) {
+																static_cast<AnalogNVM*>(arrayIH->cell[j][k])->EraseEnergyCalculation(arrayIH->wireCapCol);
+															}
+															sumArrayWriteEnergy += static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeEnergy;
+															/* Latency for each batch write in Analog eNVM */
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {	// Analog eNVM
+																sumWriteLatencyAnalogPCM += maxLatencyLTP;
+															}
+															/* Energy consumption on array caps for eNVM */
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
+																if (param->writeEnergyReport) {
+																	if (static_cast<eNVM*>(arrayIH->cell[0][0])->cmosAccess) {  // 1T1R
+																		// The energy on selected SLs is included in WriteCell()
+																		sumArrayWriteEnergy += arrayIH->wireGateCapRow * techIH.vdd * techIH.vdd * 2;   // Selected WL (*2 means both LTP and LTD phases)
+																		sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage * RESETVoltage;   // Selected BL (LTP phases)
+																		sumArrayWriteEnergy += arrayIH->wireCapCol * RESETVoltage * RESETVoltage * (param->nHide - numBatchWriteSynapse);   // Unselected SLs (LTP phase)
+																		// No LTD part because all unselected rows and columns are V=0
+																	}
+																	else {
+																		sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage *RESETVoltage;    // Selected WL (LTP phase)
+																		sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);  // Unselected WLs (LTP phase)
+																		sumArrayWriteEnergy += arrayIH->wireCapCol *RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse);   // Unselected BLs (LTP phase)
+																		sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);    // Unselected WLs (LTD phase)
+																		sumArrayWriteEnergy += arrayIH->wireCapCol * RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse); // Unselected BLs (LTD phase)
+																	}
+																}
+															}
+														}
+														/*Half selected Cell*/
+														else { //Saturation이 안된경우는 그냥 남아있음.
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
+																if (!static_cast<eNVM*>(arrayIH->cell[0][0])->cmosAccess && param->writeEnergyReport) { // Cross-point
+																	sumArrayWriteEnergy += (RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP + RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP);
+																}
+															}
+														}
+													}
+												}
+						
+												/* Calculate the average number of write pulses on the selected row */
+									//		#pragma omp critical    // Use critical here since NeuroSim class functions may update its member variables 문제가능성 큼
+									//	{
+									//		if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
+									//			int sumNumWritePulse = 0;
+									//			for (int j = 0; j < param->nHide; j++) {
+									//				sumNumWritePulse += abs(static_cast<AnalogNVM*>(arrayIH->cell[j][k])->numPulse);    // Note that LTD has negative pulse number/										}
+									//				subArrayIH->numWritePulse = sumNumWritePulse / param->nHide;
+									//				double writeVoltageSquareSumRow = 0;
+									//			}
+									//			numWriteCellPerOperation = (double)numWriteCellPerOperation / numWriteOperationPerRow;
+									//			sumNeuroSimWriteEnergy += NeuroSimSubArrayWriteEnergy(subArrayIH, numWriteOperationPerRow, numWriteCellPerOperation);
+									//		}
+									//		numWriteOperation += numWriteOperationPerRow;
+									//	}
+									//}
+												arrayIH->writeEnergy += sumArrayWriteEnergy;
+												subArrayIH->writeDynamicEnergy += sumNeuroSimWriteEnergy;
+												numWriteOperation = numWriteOperation / param->nInput;
+												subArrayIH->writeLatency += NeuroSimSubArrayWriteLatency(subArrayIH, numWriteOperation, sumWriteLatencyAnalogPCM);
+						
+												/*==================Erase Second Layer===================*/
+												sumArrayWriteEnergy = 0;
+												sumNeuroSimWriteEnergy = 0;
+												sumWriteLatencyAnalogPCM = 0;
+												numWriteOperation = 0;
+												RESETVoltage = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->RESETVoltage;
+												RESETPulseWidth = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->RESETPulseWidth;
+						#pragma omp parallel for reduction(+:sumArrayWriteEnergy,sumNeuroSimWriteEnergy,sumWriteLatencyAnalogPCM)
+												for (int k = 0; k < param->nHide; k++) {
+													int numWriteOperationPerRow = 0;
+													int numWriteCellPerOperation = 0;
+													double maxLatencyLTP = 0;
+													for (int j = 0; j < param->nOutput; j++) {
+						
+														if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->SaturationPCM) { //SET Saturation 된 경우 RESET operation을 진행
+															arrayHO->EraseCell(j, k, param->maxWeight, param->minWeight);
+															numWriteCellPerOperation += 1;
+															if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
+																maxLatencyLTP = static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP;
+															}
+															if (param->writeEnergyReport) {
+																//static_cast<AnalogNVM*>(arrayHO->cell[j][k])->EraseEnergyCalculation(arrayHO->wireCapCol);
+															}
+															sumArrayWriteEnergy += static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeEnergy;
+															/* Latency for each batch write in Analog eNVM */
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {	// Analog eNVM
+																sumWriteLatencyAnalogPCM += maxLatencyLTP;
+															}
+															/* Energy consumption on array caps for eNVM */
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
+																if (param->writeEnergyReport) {
+																	if (static_cast<eNVM*>(arrayHO->cell[0][0])->cmosAccess) {  // 1T1R
+																		// The energy on selected SLs is included in WriteCell()
+																		sumArrayWriteEnergy += arrayHO->wireGateCapRow * techIH.vdd * techIH.vdd * 2;   // Selected WL (*2 means both LTP and LTD phases)
+																		sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage * RESETVoltage;   // Selected BL (LTP phases)
+																		sumArrayWriteEnergy += arrayHO->wireCapCol * RESETVoltage * RESETVoltage * (param->nHide - numBatchWriteSynapse);   // Unselected SLs (LTP phase)
+																		// No LTD part because all unselected rows and columns are V=0
+																	}
+																	else {
+																		sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage*RESETVoltage;    // Selected WL (LTP phase)
+																		sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);  // Unselected WLs (LTP phase)
+																		sumArrayWriteEnergy += arrayHO->wireCapCol *RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse);   // Unselected BLs (LTP phase)
+																		sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);    // Unselected WLs (LTD phase)
+																		sumArrayWriteEnergy += arrayHO->wireCapCol * RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse); // Unselected BLs (LTD phase)
+																	}
+																}
+															}
+														}
+														/*Half selected Cell*/
+														else { //Saturation이 안된 경우
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
+																if ((!static_cast<eNVM*>(arrayHO->cell[0][0])->cmosAccess) && param->writeEnergyReport) { // Cross-point
+																	sumArrayWriteEnergy += (RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayHO->cell[j][k])->conductance * maxLatencyLTP + RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP);
+						
+																}
+															}
+														}
+													}
+												}
+												//			/* Calculate the average number of write pulses on the selected row */
+												//		#pragma omp critical    // Use critical here since NeuroSim class functions may update its member variables
+												//			{
+												//				if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
+												//					int sumNumWritePulse = 0;
+												//					for (int j = 0; j < param->nHide; j++) {
+												//						sumNumWritePulse += abs(static_cast<AnalogNVM*>(arrayHO->cell[j][k])->numPulse);    // Note that LTD has negative pulse number
+												//					}
+												//					subArrayHO->numWritePulse = sumNumWritePulse / param->nHide;
+												//					double writeVoltageSquareSumRow = 0;
+												//				}
+												//				numWriteCellPerOperation = (double)numWriteCellPerOperation / numWriteOperationPerRow;
+												//				sumNeuroSimWriteEnergy += NeuroSimSubArrayWriteEnergy(subArrayHO, numWriteOperationPerRow, numWriteCellPerOperation);
+												//			}
+												//			numWriteOperation += numWriteOperationPerRow;		
+												//}
+												arrayHO->writeEnergy += sumArrayWriteEnergy;
+												subArrayHO->writeDynamicEnergy += sumNeuroSimWriteEnergy;
+												numWriteOperation = numWriteOperation / param->nInput;
+												subArrayHO->writeLatency += NeuroSimSubArrayWriteLatency(subArrayHO, numWriteOperation, sumWriteLatencyAnalogPCM);
+						
+												/*SET Operation*/
+												/*ReWrite First Layer*/
+												sumArrayWriteEnergy = 0;
+												sumNeuroSimWriteEnergy = 0;
+												sumWriteLatencyAnalogPCM = 0;
+												numWriteOperation = 0;
+												double writeVoltageLTP = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->writeVoltageLTP;
+												double writePulseWidth = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->writePulseWidthLTP;
+												#pragma omp parallel for reduction(+:sumArrayWriteEnergy,sumNeuroSimWriteEnergy,sumWriteLatencyAnalogPCM)
+												for (int k = 0; k < param->nInput; k++) {
+													for (int j = 0; j < param->nHide; j++) {
+														int numWriteOperationPerRow = 0;
+														int numWriteCellPerOperation = 0;
+														double maxLatencyLTP = 0;
+						
+														if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->SaturationPCM) { //SET Saturation 된 경우 RESET operation을 진행
+															double conductancePrevGp = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->conductanceGpPrev;
+															double conductancePrevGn = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->conductanceGnPrev;
+															double weightGp = weight1[j][k];
+															arrayIH->ReWriteCell(j, k, weightGp, param->maxWeight, param->minWeight); // regular true: weight update 사용, false: 비례하여 update 
+															numWriteCellPerOperation += 1;
+															if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
+																maxLatencyLTP = static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeLatencyLTP;
+															}
+															if (param->writeEnergyReport) {
+																static_cast<AnalogNVM*>(arrayIH->cell[j][k])->WriteEnergyCalculation(arrayIH->wireCapCol);
+															}
+															sumArrayWriteEnergy += static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeEnergy;
+															/* Latency for each batch write in Analog eNVM */
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {	// Analog eNVM
+																sumWriteLatencyAnalogPCM += maxLatencyLTP;
+															}
+															/* Energy consumption on array caps for eNVM */
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
+																if (param->writeEnergyReport) {
+																	if (static_cast<eNVM*>(arrayIH->cell[0][0])->cmosAccess) {  // 1T1R
+																		// The energy on selected SLs is included in WriteCell()
+																		sumArrayWriteEnergy += arrayIH->wireGateCapRow * techIH.vdd * techIH.vdd * 2;   // Selected WL (*2 means both LTP and LTD phases)
+																		sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage * RESETVoltage;   // Selected BL (LTP phases)
+																		sumArrayWriteEnergy += arrayIH->wireCapCol * RESETVoltage * RESETVoltage * (param->nHide - numBatchWriteSynapse);   // Unselected SLs (LTP phase)
+																		// No LTD part because all unselected rows and columns are V=0
+																	}
+																	else {
+																		sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage *RESETVoltage;    // Selected WL (LTP phase)
+																		sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);  // Unselected WLs (LTP phase)
+																		sumArrayWriteEnergy += arrayIH->wireCapCol *RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse);   // Unselected BLs (LTP phase)
+																		sumArrayWriteEnergy += arrayIH->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);    // Unselected WLs (LTD phase)
+																		sumArrayWriteEnergy += arrayIH->wireCapCol * RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse); // Unselected BLs (LTD phase)
+																	}
+																}
+															}
+														}
+														/*Half selected Cell*/
+														else {
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
+																if ((!static_cast<eNVM*>(arrayIH->cell[0][0])->cmosAccess) && param->writeEnergyReport) { // Cross-point
+						
+																	sumArrayWriteEnergy += (RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP + RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP);
+						
+						
+																}
+															}
+														}
+													}
+													///* Calculate the average number of write pulses on the selected row */
+													//#pragma omp critical    // Use critical here since NeuroSim class functions may update its member variables
+													//{
+													//	if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
+													//		int sumNumWritePulse = 0;
+													//		for (int j = 0; j < param->nHide; j++) {
+													//			sumNumWritePulse += abs(static_cast<AnalogNVM*>(arrayIH->cell[j][k])->numPulse);    // Note that LTD has negative pulse number
+													//		}
+													//		subArrayIH->numWritePulse = sumNumWritePulse / param->nHide;
+													//		double writeVoltageSquareSumRow = 0;
+													//	}
+													//	numWriteCellPerOperation = (double)numWriteCellPerOperation / numWriteOperationPerRow;
+													//	sumNeuroSimWriteEnergy += NeuroSimSubArrayWriteEnergy(subArrayIH, numWriteOperationPerRow, numWriteCellPerOperation);
+													//}
+													//numWriteOperation += numWriteOperationPerRow;
+						
+												}
+						
+												arrayIH->writeEnergy += sumArrayWriteEnergy;
+												subArrayIH->writeDynamicEnergy += sumNeuroSimWriteEnergy;
+												numWriteOperation = numWriteOperation / param->nInput;
+												subArrayIH->writeLatency += NeuroSimSubArrayWriteLatency(subArrayIH, numWriteOperation, sumWriteLatencyAnalogPCM);
+						
+												/*SET Second Layer*/
+												sumArrayWriteEnergy = 0;
+												sumNeuroSimWriteEnergy = 0;
+												sumWriteLatencyAnalogPCM = 0;
+												numWriteOperation = 0;
+												writeVoltageLTP = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->writeVoltageLTP;
+												writePulseWidth = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->writePulseWidthLTP;
+						#pragma omp parallel for reduction(+:sumArrayWriteEnergy,sumNeuroSimWriteEnergy,sumWriteLatencyAnalogPCM)
+												for (int k = 0; k < param->nHide; k++) {
+													for (int j = 0; j < param->nOutput; j++) {
+														int numWriteOperationPerRow = 0;
+														int numWriteCellPerOperation = 0;
+														double maxLatencyLTP = 0;
+						
+														if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->SaturationPCM) { //SET Saturation 된 경우 RESET operation을 진행
+															double conductancePrevGp = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->conductanceGpPrev;
+															double conductancePrevGn = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->conductanceGnPrev;
+															double weightGp = weight2[j][k];
+															arrayHO->ReWriteCell(j, k, weightGp, param->maxWeight, param->minWeight); // regular true: weight update 사용, false: 비례하여 update 
+															numWriteCellPerOperation += 1;
+															if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
+																maxLatencyLTP = static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP;
+															}
+															if (param->writeEnergyReport) {
+																static_cast<AnalogNVM*>(arrayHO->cell[j][k])->WriteEnergyCalculation(arrayHO->wireCapCol);
+															}
+															sumArrayWriteEnergy += static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeEnergy;
+															/* Latency for each batch write in Analog eNVM */
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {	// Analog eNVM
+																sumWriteLatencyAnalogPCM += maxLatencyLTP;
+															}
+															/* Energy consumption on array caps for eNVM */
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
+																if (param->writeEnergyReport) {
+																	if (static_cast<eNVM*>(arrayHO->cell[0][0])->cmosAccess) {  // 1T1R
+																		// The energy on selected SLs is included in WriteCell()
+																		sumArrayWriteEnergy += arrayHO->wireGateCapRow * techIH.vdd * techIH.vdd * 2;   // Selected WL (*2 means both LTP and LTD phases)
+																		sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage * RESETVoltage;   // Selected BL (LTP phases)
+																		sumArrayWriteEnergy += arrayHO->wireCapCol * RESETVoltage * RESETVoltage * (param->nHide - numBatchWriteSynapse);   // Unselected SLs (LTP phase)
+																		// No LTD part because all unselected rows and columns are V=0
+																	}
+																	else {
+																		sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage *RESETVoltage;    // Selected WL (LTP phase)
+																		sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);  // Unselected WLs (LTP phase)
+																		sumArrayWriteEnergy += arrayHO->wireCapCol *RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse);   // Unselected BLs (LTP phase)
+																		sumArrayWriteEnergy += arrayHO->wireCapRow * RESETVoltage / 2 * RESETVoltage / 2 * (param->nInput - 1);    // Unselected WLs (LTD phase)
+																		sumArrayWriteEnergy += arrayHO->wireCapCol * RESETVoltage / 2 * RESETVoltage / 2 * (param->nHide - numBatchWriteSynapse); // Unselected BLs (LTD phase)
+																	}
+																}
+															}
+														}
+														/*Half selected Cell*/
+														else {
+															if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
+																if ((!static_cast<eNVM*>(arrayHO->cell[0][0])->cmosAccess) && param->writeEnergyReport) { // Cross-point
+						
+																	sumArrayWriteEnergy += (RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayHO->cell[j][k])->conductance * maxLatencyLTP + RESETVoltage / 2 * RESETVoltage / 2 * static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductance * maxLatencyLTP);
+						
+						
+																}
+															}
+														}
+													}
+													//								/* Calculate the average number of write pulses on the selected row */
+													//#pragma omp critical    // Use critical here since NeuroSim class functions may update its member variables
+													//								{
+													//									if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[0][0])) {  // Analog eNVM
+													//										int sumNumWritePulse = 0;
+													//										for (int j = 0; j < param->nHide; j++) {
+													//											sumNumWritePulse += abs(static_cast<AnalogNVM*>(arrayHO->cell[j][k])->numPulse);    // Note that LTD has negative pulse number
+													//										}
+													//										subArrayHO->numWritePulse = sumNumWritePulse / param->nHide;
+													//										double writeVoltageSquareSumRow = 0;
+													//									}
+													//									numWriteCellPerOperation = (double)numWriteCellPerOperation / numWriteOperationPerRow;
+													//									sumNeuroSimWriteEnergy += NeuroSimSubArrayWriteEnergy(subArrayHO, numWriteOperationPerRow, numWriteCellPerOperation);
+													//								}
+													//								numWriteOperation += numWriteOperationPerRow;
+						
+						
+												}
+												arrayHO->writeEnergy += sumArrayWriteEnergy;
+												subArrayHO->writeDynamicEnergy += sumNeuroSimWriteEnergy;
+												numWriteOperation = numWriteOperation / param->nInput;
+												subArrayHO->writeLatency += NeuroSimSubArrayWriteLatency(subArrayHO, numWriteOperation, sumWriteLatencyAnalogPCM);
+						
+						
+											
 					}
+
 				}
-				
 			}
 		}
 	}

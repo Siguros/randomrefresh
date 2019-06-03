@@ -86,8 +86,8 @@ double Array::ReadCell(int x, int y) {
 	
 				}
 				else { //false: default
-					cellCurrentGp = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGp + totalWireResistance);
-					cellCurrentGn= readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGn + totalWireResistance);
+					cellCurrentGp = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGp);//totalWireResistance);
+					cellCurrentGn = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGn); //totalWireResistance);
 					cellCurrentRef = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceRef);
 					cellCurrent = cellCurrentGp-cellCurrentGn+cellCurrentRef;
 				}
@@ -310,7 +310,7 @@ double Array::ConductanceToWeight(int x, int y, double maxWeight, double minWeig
 
 void Array::EraseCell(int x, int y, double maxWeight, double minWeight) {
 	if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(**cell)) {
-		if (static_cast<AnalogNVM*>(this->cell[x][y])->PCMON) {
+		if (static_cast<AnalogNVM*>(cell[x][y])->PCMON) {
 			static_cast<AnalogNVM*>(cell[x][y])->Erase();
 		}
 	}
