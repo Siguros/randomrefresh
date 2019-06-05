@@ -129,7 +129,7 @@ void Validate() {
 							IsumMax += arrayIH->GetMaxCellReadCurrent(j,k);
 						}
 						sumArrayReadEnergyIH += Isum * readVoltageIH * readPulseWidthIH;
-						int outputDigits = 2 * CurrentToDigits(Isum, IsumMax) - CurrentToDigits(inputSum, IsumMax);
+						int outputDigits = 2.5 * CurrentToDigits(Isum, IsumMax) - CurrentToDigits(inputSum, IsumMax);
 						outN1[j] += DigitsToAlgorithm(outputDigits, pSumMaxAlgorithm);
 					} else {    // SRAM or digital eNVM
 						int Dsum = 0;
@@ -214,7 +214,7 @@ void Validate() {
 							IsumMax += arrayHO->GetMaxCellReadCurrent(j,k);
 						}
 						sumArrayReadEnergyHO += Isum * readVoltageHO * readPulseWidthHO;
-						int outputDigits = 2 * CurrentToDigits(Isum, IsumMax) - CurrentToDigits(a1Sum, IsumMax);
+						int outputDigits = 2.5 * CurrentToDigits(Isum, IsumMax) - CurrentToDigits(a1Sum, IsumMax);
 						outN2[j] += DigitsToAlgorithm(outputDigits, pSumMaxAlgorithm);
 					} else {    // SRAM or digital eNVM
 						int Dsum = 0;

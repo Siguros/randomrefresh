@@ -122,14 +122,21 @@ void Train(const int numTrain, const int epochs) {
 							for (int k = 0; k < param->nInput; k++) {
 								if ((dInput[i][k] >> n) & 1) {    // if the nth bit of dInput[i][k] is 1
 									Isum += arrayIH->ReadCell(j, k);
+									
 									inputSum += arrayIH->GetMaxCellReadCurrent(j, k);
 									sumArrayReadEnergy += arrayIH->wireCapRow * readVoltage * readVoltage; // Selected BLs (1T1R) or Selected WLs (cross-point)
 								}
 								IsumMax += arrayIH->GetMaxCellReadCurrent(j, k);
 							}
+							//std::cout << Isum << std::endl;
+							//std::cout << IsumMax << std::endl;
 							sumArrayReadEnergy += Isum * readVoltage * readPulseWidth;
-							int outputDigits = 2 * CurrentToDigits(Isum, IsumMax) - CurrentToDigits(inputSum, IsumMax);
+							//int outputDigits = CurrentToDigits(Isum, IsumMax);
+							int outputDigits = 2.5* CurrentToDigits(Isum, IsumMax) - CurrentToDigits(inputSum, IsumMax);
+							//std::cout << outputDigits << std::endl;
 							outN1[j] += DigitsToAlgorithm(outputDigits, pSumMaxAlgorithm);
+							//std::cout << outN1[j] << std::endl;
+							//이값이 -10 ~ 10 사이값으로 나오야함.
 						}
 						else {    // SRAM or digital eNVM
 							int Dsum = 0;
@@ -153,6 +160,7 @@ void Train(const int numTrain, const int epochs) {
 					}
 					a1[j] = sigmoid(outN1[j]);
 					da1[j] = round_th(a1[j] * (param->numInputLevel - 1), param->Hthreshold);
+					// -4.3 ==> -4로 출력 -4.7 ==> -5로 출력, 4.3 ==> 4 , 4.7 ==> 5
 				}
 				arrayIH->readEnergy += sumArrayReadEnergy;
 
@@ -221,7 +229,7 @@ void Train(const int numTrain, const int epochs) {
 								IsumMax += arrayHO->GetMaxCellReadCurrent(j, k);
 							}
 							sumArrayReadEnergy += Isum * readVoltage * readPulseWidth;
-							int outputDigits = 2 * CurrentToDigits(Isum, IsumMax) - CurrentToDigits(a1Sum, IsumMax);
+							int outputDigits = 2.5 * CurrentToDigits(Isum, IsumMax) - CurrentToDigits(a1Sum, IsumMax);
 							outN2[j] += DigitsToAlgorithm(outputDigits, pSumMaxAlgorithm);
 						}
 						else {    // SRAM or digital eNVM
@@ -321,7 +329,7 @@ void Train(const int numTrain, const int epochs) {
 							deltaWeight1[jj][k] = -param->alpha1 * s1[jj] * Input[i][k];
 							arrayIH->WriteCell(jj, k, deltaWeight1[jj][k], param->maxWeight, param->minWeight, true);
 							weight1[jj][k] = arrayIH->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight);
-
+							//std::cout<<weight1[jj][k]
 							if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[jj][k])) {	// Analog eNVM
 								weightChangeBatch = weightChangeBatch || static_cast<AnalogNVM*>(arrayIH->cell[jj][k])->numPulse;
 								/* Get maxLatencyLTP and maxLatencyLTD */
@@ -1008,6 +1016,7 @@ void Train(const int numTrain, const int epochs) {
 															double conductancePrevGp = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->conductanceGpPrev;
 															double conductancePrevGn = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->conductanceGnPrev;
 															double weightGp = weight1[j][k];
+															//SET 시 도달하는 weight 값은 0.5
 															arrayIH->ReWriteCell(j, k, weightGp, param->maxWeight, param->minWeight); // regular true: weight update 사용, false: 비례하여 update 
 															numWriteCellPerOperation += 1;
 															if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
