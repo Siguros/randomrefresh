@@ -115,7 +115,7 @@ void Train(const int numTrain, const int epochs) {
 					for (int n = 0; n < param->numBitInput; n++) {
 						double pSumMaxAlgorithm = pow(2, n) / (param->numInputLevel - 1) * arrayIH->arrayRowSize;  // Max algorithm partial weighted sum for the nth vector bit (if both max input value and max weight are 1)
 						//numInputlevel=2, pSumMaxAlgoritmh=100; 
-						if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) {  // Analog eNVM
+						if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arraPyIH->cell[0][0])) {  // Analog eNVM
 							double Isum = 0;    // weighted sum current
 							double IsumMax = 0; // Max weighted sum current
 							double inputSum = 0;    // Weighted sum current of input vector * weight=1 column
@@ -132,7 +132,7 @@ void Train(const int numTrain, const int epochs) {
 							//std::cout << IsumMax << std::endl;
 							sumArrayReadEnergy += Isum * readVoltage * readPulseWidth;
 							//int outputDigits = CurrentToDigits(Isum, IsumMax);
-							int outputDigits = 2.5* CurrentToDigits(Isum, IsumMax) - CurrentToDigits(inputSum, IsumMax);
+							int outputDigits = 2*CurrentToDigits(Isum, IsumMax) - CurrentToDigits(inputSum, IsumMax);
 							//std::cout << outputDigits << std::endl;
 							outN1[j] += DigitsToAlgorithm(outputDigits, pSumMaxAlgorithm);
 							//std::cout << outN1[j] << std::endl;
@@ -229,7 +229,7 @@ void Train(const int numTrain, const int epochs) {
 								IsumMax += arrayHO->GetMaxCellReadCurrent(j, k);
 							}
 							sumArrayReadEnergy += Isum * readVoltage * readPulseWidth;
-							int outputDigits = 2.5 * CurrentToDigits(Isum, IsumMax) - CurrentToDigits(a1Sum, IsumMax);
+							int outputDigits = 2 * CurrentToDigits(Isum, IsumMax) - CurrentToDigits(a1Sum, IsumMax);
 							outN2[j] += DigitsToAlgorithm(outputDigits, pSumMaxAlgorithm);
 						}
 						else {    // SRAM or digital eNVM
@@ -327,6 +327,7 @@ void Train(const int numTrain, const int epochs) {
 						bool weightChangeBatch = false;	// Specify if there is any weight change in the entire write batch
 						for (int jj = start; jj <= end; jj++) { // Selected cells
 							deltaWeight1[jj][k] = -param->alpha1 * s1[jj] * Input[i][k];
+							//std::cout << deltaWeight1[jj][k] << std::endl;
 							arrayIH->WriteCell(jj, k, deltaWeight1[jj][k], param->maxWeight, param->minWeight, true);
 							weight1[jj][k] = arrayIH->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight);
 							//std::cout<<weight1[jj][k]
@@ -752,7 +753,7 @@ void Train(const int numTrain, const int epochs) {
 						double sumArrayReadEnergy = 0; // Read Energy를 더할 임시 변수
 						double readVoltage = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->readVoltage;
 						double readPulseWidth = static_cast<AnalogNVM*>(arrayIH->cell[0][0])->readPulseWidth;
-#pragma omp parallel for reduction(+: sumArrayReadEnergy)
+						#pragma omp parallel for reduction(+: sumArrayReadEnergy)
 						for (int j = 0; j < param->nHide; j++) {
 							if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[0][0])) { //Analog PCM
 								if (static_cast<AnalogNVM*>(arrayIH->cell[0][0])->cmosAccess) { //1T1R
@@ -766,7 +767,7 @@ void Train(const int numTrain, const int epochs) {
 									double IsumMax = 0; //Max weight sum current
 									double inputSum = 0;  // weight sum current of input vector
 									for (int k = 0; k < param->nInput; k++) {
-										Isum += arrayIH->ReadCell(j, k);
+										Isum += arrayIH->ReadCell(j,k);
 										if (static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductanceGp > ResetThr) {
 											static_cast<AnalogNVM*>(arrayIH->cell[j][k])->SaturationPCM = true;
 										}

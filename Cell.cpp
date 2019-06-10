@@ -44,7 +44,7 @@
 double AnalogNVM::GetMaxReadCurrent()
 {
 	if (PCMON) {
-		return readVoltage * (PCMavgMaxConductance+conductanceRef); //2max-2min
+		return readVoltage * PCMavgMaxConductance; //2max-2min
 	}
 	else {
 		return readVoltage * avgMaxConductance;
@@ -54,7 +54,7 @@ double AnalogNVM::GetMaxReadCurrent()
 double AnalogNVM::GetMinReadCurrent()
 {
 	if (PCMON) {
-		return readVoltage * (PCMavgMinConductance+conductanceRef); //0
+		return readVoltage * PCMavgMinConductance; //0
 	}
 	else {
 		return readVoltage * avgMinConductance;
@@ -431,7 +431,7 @@ RealDevice::RealDevice(int x, int y) {
 	minConductance = 3.0769e-9;	// Minimum cell conductance (S)
 	avgMaxConductance = maxConductance; // Average maximum cell conductance (S)
 	avgMinConductance = minConductance; // Average minimum cell conductance (S)
-	conductance = minConductance;	// Current conductance (S) (dynamic variable)
+	conductance = maxConductance;	// Current conductance (S) (dynamic variable)
 	conductancePrev = conductance;	// Previous conductance (S) (dynamic variable)
 	readVoltage = 0.5;	// On-chip read voltage (Vr) (V)
 	readPulseWidth = 5e-9;	// Read pulse width (s) (will be determined by ADC)
@@ -454,10 +454,10 @@ RealDevice::RealDevice(int x, int y) {
 	conductanceGp = minConductance;
 	conductanceGpPrev = conductanceGp;
 	conductanceGnPrev = conductanceGn;
-	PCMavgMaxConductance = maxConductance - minConductance;
-	PCMavgMinConductance = minConductance - maxConductance;
+	PCMavgMaxConductance = 2*maxConductance - minConductance;
+	PCMavgMinConductance = minConductance;
+	//conductanceRef = maxConductance;
 	conductanceRef = maxConductance;
-	//conductanceRef = 0;
 	ThrConductance = minConductance;
 	if (nonlinearIV) {  // Currently for cross-point array only
 		double Vr_exp = readVoltage;  // XXX: Modify this value to Vr in the reported measurement data (can be different than readVoltage)
@@ -487,7 +487,7 @@ RealDevice::RealDevice(int x, int y) {
 	/*PCM Properties*/
 	PCMActivity = 0.3;
 	PCMActivityOn =false;
-	PCMON = true;
+	PCMON =true;
 	SaturationPCM = false;
 	RESETVoltage = 10;
 	RESETPulseWidth = 5e-9;
@@ -557,11 +557,12 @@ void RealDevice::Write(double deltaWeightNormalized) {
 	if (PCMON) { //PCM	
 		deltaWeightNormalized = 2 * deltaWeightNormalized;
 		deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
-		numPulse = deltaWeightNormalized * maxNumLevelLTP;
-		if (numPulse > maxNumLevelLTP) {
-			numPulse = maxNumLevelLTP;
-		}
+	
 		if (deltaWeightNormalized > 0) { //Gp update
+			numPulse = deltaWeightNormalized * maxNumLevelLTP;
+			if (numPulse > maxNumLevelLTP) {
+				numPulse = maxNumLevelLTP;
+			}
 			if (nonlinearWrite){
 				paramBLTP = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
 				xPulseGp = InvNonlinearWeight(conductanceGp, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
@@ -573,6 +574,10 @@ void RealDevice::Write(double deltaWeightNormalized) {
 			}
 		}
 		else { //Gn update
+			numPulse = -deltaWeightNormalized * maxNumLevelLTP;
+			if (numPulse > maxNumLevelLTP) {
+				numPulse = maxNumLevelLTP;
+			}
 			if (nonlinearWrite) {
 				paramBLTP = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
 				xPulseGn = InvNonlinearWeight(conductanceGn, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
@@ -738,8 +743,10 @@ void RealDevice::Erase()
 
 void RealDevice::ReWrite(double deltaWeightNormalized)
 {
-	if (deltaWeightNormalized > 0.5){ //Gp update
-		this->numPulse = 2*(deltaWeightNormalized-0.5) * maxNumLevelLTP;
+	if (deltaWeightNormalized > 0.5){ //Gp update default 0.5
+		deltaWeightNormalized =deltaWeightNormalized- 0.5;
+		deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
+		this->numPulse = 2*deltaWeightNormalized * maxNumLevelLTP;
 		double conductancenewGp = conductanceGp;
 		double NL_LTP_B = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
 		xPulseGp = InvNonlinearWeight(conductanceGp, maxNumLevelLTP, paramALTP, NL_LTP_B, minConductance);
@@ -756,10 +763,12 @@ void RealDevice::ReWrite(double deltaWeightNormalized)
 			conductancenewGp = minConductance;
 		}
 		conductanceGp = conductancenewGp;
-		conductance = conductanceGp - conductanceGn+conductanceRef;
+		conductance = conductanceGp-conductanceGn+conductanceRef;
 	}
 	else{ // Gn update
-		this->numPulse = 2 * (0.5-deltaWeightNormalized) * maxNumLevelLTP;
+		deltaWeightNormalized = 0.5-deltaWeightNormalized;
+		deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
+		this->numPulse = 2 *deltaWeightNormalized *maxNumLevelLTP;
 		double conductancenewGn = conductanceGn;
 		double NL_LTP_B = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
 		xPulseGn = InvNonlinearWeight(conductanceGn, maxNumLevelLTP, paramALTP, NL_LTP_B, minConductance);

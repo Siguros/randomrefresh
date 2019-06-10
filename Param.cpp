@@ -51,7 +51,7 @@ Param::Param() {
 	nInput = 400;     // # of neurons in input layer
 	nHide = 100;      // # of neurons in hidden layer
 	nOutput = 10;     // # of neurons in output layer
-	alpha1 = 0.3;	// Learning rate for the weights from input to hidden layer
+	alpha1 = 0.4;	// Learning rate for the weights from input to hidden layer
 	alpha2 = 0.2;	// Learning rate for the weights from hidden to output layer
 	maxWeight = 1;	// Upper bound of weight value
 	minWeight = 0;	// Lower bound of weight value
@@ -78,6 +78,6 @@ Param::Param() {
 	processNode = 14;	// Technology node (nm)
 	clkFreq = 2e9;		// Clock frequency (Hz)
 
-	numImageperRESET = 1;
+	numImageperRESET = 2;
 }
 
