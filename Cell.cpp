@@ -446,14 +446,16 @@ RealDevice::RealDevice(int x, int y) {
 	gateCapFeFET = 2.1717e-18;	// Gate capacitance of FeFET (F)
 	resistanceAccess = 15e3;	// The resistance of transistor (Ohm) in Pseudo-crossbar array when turned ON
 	writeEnergy = 0;	// Dynamic variable for calculation of write energy (J)
-	maxNumLevelLTP = 97;	// Maximum number of conductance states during LTP or weight increase1
+	maxNumLevelLTP = 100;	// Maximum number of conductance states during LTP or weight increase1
 	nonlinearIV = false;	// Consider I-V nonlinearity or not (Currently for cross-point array only)
 	NL = 10;    // I-V nonlinearity in write scheme (the current ratio between Vw and Vw/2), assuming for the LTP side
 	//PCM properties
-	conductanceGn = minConductance;
+	conductanceGn = maxConductance;
 	conductanceGp = minConductance;
 	conductanceGpPrev = conductanceGp;
 	conductanceGnPrev = conductanceGn;
+	PCMavgMaxConductance = 0;
+	PCMavgMinConductance = minConductance-maxConductance;
 	PCMavgMaxConductance = 2*maxConductance - minConductance;
 	PCMavgMinConductance = minConductance;
 	//conductanceRef = maxConductance;
@@ -487,6 +489,8 @@ RealDevice::RealDevice(int x, int y) {
 	/*PCM Properties*/
 	PCMActivity = 0.3;
 	PCMActivityOn =false;
+	PCMON = true;
+	SaturationPCM = true;
 	PCMON =true;
 	SaturationPCM = false;
 	RESETVoltage = 10;
@@ -494,7 +498,7 @@ RealDevice::RealDevice(int x, int y) {
 	maxRESETLEVEL = 10;
 	/* Device-to-device weight update variation */
 	NL_LTP =0;	// LTP nonlinearity
-	NL_LTD = -1;	// LTD nonlinearity
+	NL_LTD =0;	// LTD nonlinearity
 	sigmaDtoD = 0;	// Sigma of device-to-device weight update vairation in gaussian distribution
 	gaussian_dist2 = new std::normal_distribution<double>(0, sigmaDtoD);	// Set up mean and stddev for device-to-device weight update vairation
 	paramALTP = getParamA(NL_LTP + (*gaussian_dist2)(localGen)) * maxNumLevelLTP;	// Parameter A for LTP nonlinearity
@@ -555,7 +559,7 @@ void RealDevice::Write(double deltaWeightNormalized) {
 	double conductanceNewGp = conductanceGp;
 	double conductanceNewGn = conductanceGn;
 	if (PCMON) { //PCM	
-		deltaWeightNormalized = 2 * deltaWeightNormalized;
+		//deltaWeightNormalized = 2 * deltaWeightNormalized;
 		deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
 	
 		if (deltaWeightNormalized > 0) { //Gp update
@@ -587,6 +591,21 @@ void RealDevice::Write(double deltaWeightNormalized) {
 				xPulseGn = (conductanceGn - minConductance) / (maxConductance - minConductance)*maxNumLevelLTP;
 				conductanceNewGn = (xPulseGn + numPulse) / maxNumLevelLTP * (maxConductance - minConductance) + minConductance;
 			}
+			/* Gn update  xx Gn은 고정, Gp만 업데이트*/
+			//numPulse = deltaWeightNormalized * maxNumLevelLTP;
+			///*if (numPulse > maxNumLevelLTP) {
+			//	numPulse = maxNumLevelLTP;
+			//}
+		/*	numPulse = 0;
+			if (nonlinearWrite) {
+				paramBLTP = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
+				xPulseGp = InvNonlinearWeight(conductanceGp, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
+				conductanceNewGp = NonlinearWeight(xPulseGp + numPulse, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
+			}
+			else {
+				xPulseGp = (conductanceGp - minConductance) / (maxConductance - minConductance)*maxNumLevelLTP;
+				conductanceNewGp = (xPulseGp + numPulse) / maxNumLevelLTP * (maxConductance - minConductance) + minConductance;
+			}*/
 		}
 	}
 	else { //RRAM
@@ -706,7 +725,7 @@ void RealDevice::Write(double deltaWeightNormalized) {
 void RealDevice::Erase()
 {
 	if (PCMON) {
-		numPulse = maxRESETLEVEL;
+		//numPulse = maxRESETLEVEL;
 		double conductancenewGp = minConductance;
 		double conductancenewGn = minConductance;
 		double conductancenew = conductance;
@@ -714,7 +733,7 @@ void RealDevice::Erase()
 		extern std::mt19937 gen;
 		if (sigmaCtoC != 0) {
 			conductancenewGp += (*gaussian_dist3)(gen)*sqrt(abs(numPulse));
-			conductancenewGn += (*gaussian_dist3)(gen)*sqrt(abs(numPulse));
+			//conductancenewGn += (*gaussian_dist3)(gen)*sqrt(abs(numPulse));
 		}
 		if (conductancenewGp > maxConductance) {
 			conductancenewGp = maxConductance;
@@ -748,9 +767,9 @@ void RealDevice::ReWrite(double deltaWeightNormalized)
 		deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
 		this->numPulse = 2*deltaWeightNormalized * maxNumLevelLTP;
 		double conductancenewGp = conductanceGp;
-		double NL_LTP_B = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
-		xPulseGp = InvNonlinearWeight(conductanceGp, maxNumLevelLTP, paramALTP, NL_LTP_B, minConductance);
-		conductancenewGp = NonlinearWeight(xPulseGp + numPulse, maxNumLevelLTP, paramALTP, NL_LTP_B, minConductance);
+		paramBLTP = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
+		xPulseGp = InvNonlinearWeight(conductanceGp, maxNumLevelLTP, paramALTP,paramBLTP, minConductance);
+		conductancenewGp = NonlinearWeight(xPulseGp + numPulse, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
 
 		if (sigmaCtoC&&numPulse != 0) {
 			extern std::mt19937 gen;
@@ -770,9 +789,9 @@ void RealDevice::ReWrite(double deltaWeightNormalized)
 		deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
 		this->numPulse = 2 *deltaWeightNormalized *maxNumLevelLTP;
 		double conductancenewGn = conductanceGn;
-		double NL_LTP_B = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
-		xPulseGn = InvNonlinearWeight(conductanceGn, maxNumLevelLTP, paramALTP, NL_LTP_B, minConductance);
-		conductancenewGn = NonlinearWeight(xPulseGn + numPulse, maxNumLevelLTP, paramALTP, NL_LTP_B, minConductance);
+		paramBLTP = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
+		xPulseGn = InvNonlinearWeight(conductanceGn, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
+		conductancenewGn = NonlinearWeight(xPulseGn + numPulse, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
 
 		if (sigmaCtoC&&numPulse != 0) {
 			extern std::mt19937 gen;
@@ -787,7 +806,26 @@ void RealDevice::ReWrite(double deltaWeightNormalized)
 		conductanceGn = conductancenewGn;
 		conductance = conductanceGp-conductanceGn+conductanceRef;
 	}
-
+	//double conductanceNewGp = conductanceGp;
+	//double conductanceNew = conductance;
+	//deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
+	//	numPulse = deltaWeightNormalized * maxNumLevelLTP;
+	//	/*if (numPulse > maxNumLevelLTP) {
+	//		numPulse = maxNumLevelLTP;
+	//	}*/
+	//	if (nonlinearWrite) {
+	//		paramBLTP = (maxConductance - minConductance) / (1 - exp(-maxNumLevelLTP / paramALTP));
+	//		xPulseGp = InvNonlinearWeight(conductanceGp, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
+	//		conductanceNewGp = NonlinearWeight(xPulseGp + numPulse, maxNumLevelLTP, paramALTP, paramBLTP, minConductance);
+	//	}
+	//	else {
+	//		xPulseGp = (conductanceGp - minConductance) / (maxConductance - minConductance)*maxNumLevelLTP;
+	//		conductanceNewGp = (xPulseGp + numPulse) / maxNumLevelLTP * (maxConductance - minConductance) + minConductance;
+	//	}
+	//	conductanceGp = conductanceNewGp;
+	//	conductanceNew = conductanceNewGp - conductanceGn + conductanceRef;
+	//	conductance = conductanceNew;
+	
 }
 
 /* Measured device */
