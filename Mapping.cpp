@@ -70,30 +70,67 @@ void WeightInitialize() {
 
 /* Conductance initialization (map weight to RRAM conductance or SRAM data) */
 void WeightToConductance() {
-    /* Erase the weight of arrayIH */
-    for (int col=0; col<param->nHide; col++) {
-        for (int row=0; row<param->nInput; row++) {
-            arrayIH->WriteCell(col, row, -(param->maxWeight-param->minWeight) /* delta_W=-(param->maxWeight-param->minWeight) will completely erase */, param->maxWeight, param->minWeight, false);
-        }
-    }
-    /* Erase the weight of arrayHO */
-    for (int col=0; col<param->nOutput; col++) {
-        for (int row=0; row<param->nHide; row++) {
-            arrayHO->WriteCell(col, row, -(param->maxWeight-param->minWeight) /* delta_W=-(param->maxWeight-param->minWeight) will completely erase */, param->maxWeight, param->minWeight, false);
-        }
-    }
-    /* Write weight to arrayIH */
-    for (int col=0; col<param->nHide; col++) {
-        for (int row=0; row<param->nInput; row++) {
-            arrayIH->WriteCell(col, row, weight1[col][row], param->maxWeight, param->minWeight, false);
-        }
-    }
-    /* Write weight to arrayHO */
-    for (int col=0; col<param->nOutput; col++) {
-        for (int row=0; row<param->nHide; row++) {
-            arrayHO->WriteCell(col, row, weight2[col][row], param->maxWeight, param->minWeight, false);
-        }
-    }
+
+	if (static_cast<AnalogNVM*>(arrayIH->cell[0][0])->PCMON) {
+		for (int col = 0; col < param->nHide; col++) {
+			/* Erase the weight of arrayIH */
+			for (int row = 0; row < param->nInput; row++) {
+				arrayIH->EraseCell(col, row, param->maxWeight, param->minWeight);
+			}
+			/* ReWrite weight to arrayIH */
+			for (int col = 0; col < param->nHide; col++) {
+				for (int row = 0; row < param->nInput; row++) {
+					arrayIH->ReWriteCell(col, row, weight1[col][row], param->maxWeight, param->minWeight);
+				}
+			}
+		}
+	}
+	else {
+		/* Erase the weight of arrayIH */
+		for (int col = 0; col < param->nHide; col++) {
+			for (int row = 0; row < param->nInput; row++) {
+				arrayIH->WriteCell(col, row, -(param->maxWeight - param->minWeight) /* delta_W=-(param->maxWeight-param->minWeight) will completely erase */, param->maxWeight, param->minWeight, false);
+			}
+		}
+		/* Write weight to arrayIH */
+		for (int col = 0; col < param->nHide; col++) {
+			for (int row = 0; row < param->nInput; row++) {
+				arrayIH->WriteCell(col, row, weight1[col][row], param->maxWeight, param->minWeight, false);
+			}
+		}
+	}
+	if (static_cast<AnalogNVM*>(arrayHO->cell[0][0])->PCMON) {
+		for (int col = 0; col < param->nOutput; col++) {
+			/* Erase the weight of arrayIH */
+			for (int row = 0; row < param->nHide; row++) {
+				arrayHO->EraseCell(col, row, param->maxWeight, param->minWeight);
+			}
+			/* ReWrite weight to arrayIH */
+			for (int col = 0; col < param->nOutput; col++) {
+				for (int row = 0; row < param->nHide; row++) {
+					arrayHO->ReWriteCell(col, row, weight2[col][row], param->maxWeight, param->minWeight);
+				}
+			}
+		}
+	}
+	else {
+		/* Erase the weight of arrayHO */
+		for (int col = 0; col < param->nOutput; col++) {
+			for (int row = 0; row < param->nHide; row++) {
+				arrayHO->WriteCell(col, row, -(param->maxWeight - param->minWeight) /* delta_W=-(param->maxWeight-param->minWeight) will completely erase */, param->maxWeight, param->minWeight, false);
+			}
+		}
+
+		/* Write weight to arrayHO */
+		for (int col = 0; col < param->nOutput; col++) {
+			for (int row = 0; row < param->nHide; row++) {
+				arrayHO->WriteCell(col, row, weight2[col][row], param->maxWeight, param->minWeight, false);
+			}
+		}
+	}
+
+	
+
 }
 
 /* Mapping from analog current to digital output*/

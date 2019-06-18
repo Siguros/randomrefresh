@@ -332,8 +332,8 @@ void Train(const int numTrain, const int epochs) {
 							//weight1[jj][k] += deltaWeight1[jj][k];
 							weight1[jj][k] = arrayIH->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight)+deltaWeight1[jj][k];
 							//std::cout << deltaWeight1[jj][k] << std::endl;
-							arrayIH->WriteCell(jj, k, deltaWeight1[jj][k], param->maxWeight, param->minWeight, true);
-							weight1[jj][k] = arrayIH->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight);
+							//arrayIH->WriteCell(jj, k, deltaWeight1[jj][k], param->maxWeight, param->minWeight, true);
+							//weight1[jj][k] = arrayIH->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight);
 							//std::cout<<weight1[jj][k]
 							if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayIH->cell[jj][k])) {	// Analog eNVM
 								weightChangeBatch = weightChangeBatch || static_cast<AnalogNVM*>(arrayIH->cell[jj][k])->numPulse;
@@ -552,10 +552,10 @@ void Train(const int numTrain, const int epochs) {
 						bool weightChangeBatch = false; // Specify if there is any weight change in the entire write batch
 						for (int jj = start; jj <= end; jj++) { // Selected cells
 							deltaWeight2[jj][k] = -param->alpha2 * s2[jj] * a1[k];
-							//arrayHO->WriteCell(jj, k, deltaWeight2[jj][k], param->maxWeight, param->minWeight, true);
+							arrayHO->WriteCell(jj, k, deltaWeight2[jj][k], param->maxWeight, param->minWeight, true);
 							//double conductanceGp = static_cast<AnalogNVM*>(arrayHO->cell[jj][k])->conductanceGp;
 							//std::cout << conductanceGp << std::endl;
-							weight2[jj][k] = arrayHO->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight)+deltaWeight2[jj][k];
+							weight2[jj][k] = arrayHO->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight);//+deltaWeight2[jj][k];
 							//weight2[jj][k] += deltaWeight2[jj][k];
 							if (AnalogNVM *temp = dynamic_cast<AnalogNVM*>(arrayHO->cell[jj][k])) { // Analog eNVM
 								weightChangeBatch = weightChangeBatch || static_cast<AnalogNVM*>(arrayHO->cell[jj][k])->numPulse;
@@ -1030,8 +1030,8 @@ void Train(const int numTrain, const int epochs) {
 															double weightGp = weight1[j][k]-0.5;
 															//ERAESE시 weight 값 0.5
 															/*std::cout << "w: " << weightGp;*/
-															arrayIH->WriteCell(j, k, weight1[j][k] - 0.5, param->maxWeight, param->minWeight, true);
-															//arrayIH->ReWriteCell(j, k, weight1[j][k], param->maxWeight, param->minWeight); // regular true: weight update 사용, false: 비례하여 update 
+															//arrayIH->WriteCell(j, k, weight1[j][k] - 0.5, param->maxWeight, param->minWeight, true);
+															arrayIH->ReWriteCell(j, k, weight1[j][k], param->maxWeight, param->minWeight); // regular true: weight update 사용, false: 비례하여 update 
 															/*Gp = static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductanceGp;
 															Gn = static_cast<AnalogNVM*>(arrayIH->cell[j][k])->conductanceGn;
 															std::cout << "GP: " << Gp << "Gn: "<< Gn;*/
@@ -1120,8 +1120,8 @@ void Train(const int numTrain, const int epochs) {
 															double conductancePrevGp = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->conductanceGpPrev;
 															double conductancePrevGn = static_cast<AnalogNVM*>(arrayHO->cell[0][0])->conductanceGnPrev;
 															double weightGp = weight2[j][k]-0.5;
-														    arrayHO->WriteCell(j, k, weight2[j][k] - 0.5, param->maxWeight, param->minWeight, true);
-															//arrayHO->ReWriteCell(j, k, weight2[j][k], param->maxWeight, param->minWeight); // regular true: weight update 사용, false: 비례하여 update 
+														    //arrayHO->WriteCell(j, k, weight2[j][k] - 0.5, param->maxWeight, param->minWeight, true);
+															arrayHO->ReWriteCell(j, k, weight2[j][k], param->maxWeight, param->minWeight); // regular true: weight update 사용, false: 비례하여 update 
 															numWriteCellPerOperation += 1;
 															if (static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP > maxLatencyLTP) {
 																maxLatencyLTP = static_cast<AnalogNVM*>(arrayHO->cell[j][k])->writeLatencyLTP;

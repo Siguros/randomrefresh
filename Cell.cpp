@@ -454,8 +454,8 @@ RealDevice::RealDevice(int x, int y) {
 	conductanceGp = minConductance;
 	conductanceGpPrev = conductanceGp;
 	conductanceGnPrev = conductanceGn;
-	PCMavgMaxConductance = 0;
-	PCMavgMinConductance = minConductance-maxConductance;
+	//PCMavgMaxConductance = 0;
+	//PCMavgMinConductance = minConductance-maxConductance;
 	PCMavgMaxConductance = 2*maxConductance - minConductance;
 	PCMavgMinConductance = minConductance;
 	//conductanceRef = maxConductance;
@@ -491,8 +491,6 @@ RealDevice::RealDevice(int x, int y) {
 	PCMActivityOn =false;
 	PCMON = true;
 	SaturationPCM = true;
-	PCMON =true;
-	SaturationPCM = false;
 	RESETVoltage = 10;
 	RESETPulseWidth = 5e-9;
 	maxRESETLEVEL = 10;
@@ -559,7 +557,7 @@ void RealDevice::Write(double deltaWeightNormalized) {
 	double conductanceNewGp = conductanceGp;
 	double conductanceNewGn = conductanceGn;
 	if (PCMON) { //PCM	
-		//deltaWeightNormalized = 2 * deltaWeightNormalized;
+		deltaWeightNormalized = 2 * deltaWeightNormalized;
 		deltaWeightNormalized = truncate(deltaWeightNormalized, maxNumLevelLTP);
 	
 		if (deltaWeightNormalized > 0) { //Gp update
