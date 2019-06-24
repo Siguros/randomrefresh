@@ -75,7 +75,7 @@ void WeightToConductance() {
 		for (int col = 0; col < param->nHide; col++) {
 			/* Erase the weight of arrayIH */
 			for (int row = 0; row < param->nInput; row++) {
-				arrayIH->EraseCell(col, row, param->maxWeight, param->minWeight);
+				arrayIH->EraseCell(col, row, param->maxWeight, param->minWeight); //Erase를 시키면 둘다 minConductance로 감
 			}
 			/* ReWrite weight to arrayIH */
 			for (int col = 0; col < param->nHide; col++) {

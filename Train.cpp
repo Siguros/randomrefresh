@@ -328,9 +328,9 @@ void Train(const int numTrain, const int epochs) {
 						bool weightChangeBatch = false;	// Specify if there is any weight change in the entire write batch
 						for (int jj = start; jj <= end; jj++) { // Selected cells
 							deltaWeight1[jj][k] = -param->alpha1 * s1[jj] * Input[i][k];
-							//arrayIH->WriteCell(jj, k, deltaWeight1[jj][k], param->maxWeight, param->minWeight, true);
+							arrayIH->WriteCell(jj, k, deltaWeight1[jj][k], param->maxWeight, param->minWeight, true);
 							//weight1[jj][k] += deltaWeight1[jj][k];
-							weight1[jj][k] = arrayIH->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight)+deltaWeight1[jj][k];
+							weight1[jj][k] = arrayIH->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight);//eltaWeight1[jj][k];
 							//std::cout << deltaWeight1[jj][k] << std::endl;
 							//arrayIH->WriteCell(jj, k, deltaWeight1[jj][k], param->maxWeight, param->minWeight, true);
 							//weight1[jj][k] = arrayIH->ConductanceToWeight(jj, k, param->maxWeight, param->minWeight);

@@ -196,6 +196,10 @@ public:
 	double NL_RESET;
 	double paramA_RESET;
 	double paramB_RESET;
+	double NL_LTP_Gp;
+	double NL_LTP_Gn;
+	double paramA_Gp_LTP;
+	double paramA_Gn_LTP;
 	std::mt19937 RandGen;
 	RealDevice(int x, int y);
 	double Read(double voltage);	// Return read current (A)
