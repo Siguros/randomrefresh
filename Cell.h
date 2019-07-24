@@ -80,6 +80,7 @@ public:
 	std::normal_distribution<double> *gaussian_dist5;	// Normal distribution object
 	std::normal_distribution<double> *gaussian_dist_maxConductance;	// Normal distribution object
 	std::normal_distribution<double> *gaussian_dist_minConductance;	// Normal distribution object
+	std::uniform_real_distribution<double> *uniform_dist;
 	/* Need the 4 variables below if nonlinearIV=true */
 	double conductanceAtVwLTP;		// Conductance at the LTP write voltage
 	double conductanceAtVwLTD;		// Conductance at the LTD write voltage
@@ -91,9 +92,11 @@ public:
 	/*PCM properties*/
 	double RESETVoltage;
 	double RESETPulseWidth;
-	double conductanceGp; // G+ conductacne
+	double conductanceGp1; // G+ conductacne
+	double conductanceGp2;
 	double conductanceGn; //G- conductance
-	double conductanceGpPrev;
+	double conductanceGp1Prev;
+	double conductanceGp2Prev;
 	double conductanceGnPrev;
 	double conductanceRef; // Refernce conductance for weight update
 	bool PCMActivityOn; // PCM activity true: probability of RESET (ERASE) operating false: default
@@ -145,8 +148,10 @@ public:
 	
     /*PCM properties*/
 	bool PCMON;
+	bool RandomRefresh;
+	bool SelectDevice;
 	int maxRESETLEVEL;
-
+	double ActRandRef; // refresh random °ª »ý¼º
 
 	virtual double Read(double voltage) = 0;
 	virtual void Write(double deltaWeightNormalized) = 0;
@@ -196,11 +201,14 @@ public:
 	double NL_RESET;
 	double paramA_RESET;
 	double paramB_RESET;
-	double NL_LTP_Gp;
+	double NL_LTP_Gp1;
+	double NL_LTP_Gp2;
 	double NL_LTP_Gn;
-	double paramA_Gp_LTP;
+	double paramA_Gp_LTP1;
+	double paramA_Gp_LTP2;
 	double paramA_Gn_LTP;
 	std::mt19937 RandGen;
+
 	RealDevice(int x, int y);
 	double Read(double voltage);	// Return read current (A)
 	void Write(double deltaWeightNormalized);

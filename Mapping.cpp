@@ -80,7 +80,8 @@ void WeightToConductance() {
 			/* ReWrite weight to arrayIH */
 			for (int col = 0; col < param->nHide; col++) {
 				for (int row = 0; row < param->nInput; row++) {
-					arrayIH->ReWriteCell(col, row, weight1[col][row], param->maxWeight, param->minWeight);
+					//arrayIH->ReWriteCell(col, row, weight1[col][row], param->maxWeight, param->minWeight);
+					arrayIH->WriteCell(col, row, weight1[col][row]-0.5, param->maxWeight, param->minWeight, false);
 				}
 			}
 		}
@@ -108,7 +109,8 @@ void WeightToConductance() {
 			/* ReWrite weight to arrayIH */
 			for (int col = 0; col < param->nOutput; col++) {
 				for (int row = 0; row < param->nHide; row++) {
-					arrayHO->ReWriteCell(col, row, weight2[col][row], param->maxWeight, param->minWeight);
+					//arrayHO->ReWriteCell(col, row, weight2[col][row], param->maxWeight, param->minWeight);
+					arrayHO->WriteCell(col, row, weight2[col][row]-0.5, param->maxWeight, param->minWeight, false);
 				}
 			}
 		}

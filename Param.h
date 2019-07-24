@@ -81,7 +81,9 @@ public:
 	int processNode;	// Technology node (nm)
 	double clkFreq;		// Clock frequency (Hz)
 
-	int numImageperRESET;
+	int numImageperRESET; //Refresh rate: 1 refresh/ batch image
+	double ActRefdeviceIH; // refresh activity, 400x100 device * ActRefdeviceIH : refresh device
+	double ActRefdeviceHO; // refresh activity, 100*10 device * ActRefdeviceHO : refresh device
 };
 
 #endif

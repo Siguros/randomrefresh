@@ -56,7 +56,8 @@ double Array::ReadCell(int x, int y) {
 			else {
 				totalWireResistance = (x + 1) * wireResistanceRow + (arrayRowSize - y) * wireResistanceCol;
 			}
-			double cellCurrentGp;
+			double cellCurrentGp1;
+			double cellCurrentGp2;
 			double cellCurrentGn;
 			double cellCurrentRef;
 			double cellCurrent;
@@ -79,14 +80,15 @@ double Array::ReadCell(int x, int y) {
 			else {	// No nonlinearity
 				if (static_cast<eNVM*>(cell[x][y])->readNoise) {
 					extern std::mt19937 gen;
-					cellCurrentGp = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGp * (1 + (*static_cast<eNVM*>(cell[x][y])->gaussian_dist)(gen)) + totalWireResistance);
+					cellCurrentGp1 = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGp1 * (1 + (*static_cast<eNVM*>(cell[x][y])->gaussian_dist)(gen)) + totalWireResistance);
+					cellCurrentGp2 = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGp2 * (1 + (*static_cast<eNVM*>(cell[x][y])->gaussian_dist)(gen)) + totalWireResistance);
 					cellCurrentGn = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGn * (1 + (*static_cast<eNVM*>(cell[x][y])->gaussian_dist)(gen)) + totalWireResistance);
 					cellCurrentRef = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceRef);
-					cellCurrent = cellCurrentGp-cellCurrentGn+cellCurrentRef;
+					cellCurrent = cellCurrentGp1+ cellCurrentGp2-cellCurrentGn+cellCurrentRef;
 	
 				}
 				else { //false: default
-					//cellCurrentGp = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGp);//totalWireResistance);
+					//cellCurrentGp = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGp1);//totalWireResistance);
 					//cellCurrentGn = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceGn); //totalWireResistance);
 					//cellCurrentRef = readVoltage / (1 / static_cast<eNVM*>(cell[x][y])->conductanceRef);
 					//cellCurrent = cellCurrentGp-cellCurrentGn+cellCurrentRef;
@@ -202,7 +204,8 @@ void Array::WriteCell(int x, int y, double deltaWeight, double maxWeight, double
 			}
 			else {	// Preparation stage (ideal write)
 				double conductance = static_cast<eNVM*>(cell[x][y])->conductance;
-				double conductanceGp = static_cast<eNVM*>(cell[x][y])->conductanceGp;
+				double conductanceGp1 = static_cast<eNVM*>(cell[x][y])->conductanceGp1;
+				double conductanceGp2 = static_cast<eNVM*>(cell[x][y])->conductanceGp2;
 				double conductanceGn = static_cast<eNVM*>(cell[x][y])->conductanceGn;
 				//double maxConductance = static_cast<eNVM*>(cell[x][y])->maxConductance- static_cast<eNVM*>(cell[x][y])->minConductance;
 				//double minConductance = static_cast<eNVM*>(cell[x][y])->minConductance- static_cast<eNVM*>(cell[x][y])->maxConductance;
@@ -210,12 +213,20 @@ void Array::WriteCell(int x, int y, double deltaWeight, double maxWeight, double
 				double minConductance = static_cast<eNVM*>(cell[x][y])->minConductance;
 				double conductanceRef = static_cast<eNVM*>(cell[x][y])->conductanceRef;
 				if (deltaWeightNormalized > 0) {
-					conductanceGp += deltaWeightNormalized * (maxConductance - minConductance)*2;
-					//conductanceGp += deltaWeightNormalized * (maxConductance - minConductance) ;
-					if(conductanceGp> maxConductance){
-						conductanceGp = maxConductance;
+					/*Gp1 cell weight update*/
+					conductanceGp1 += deltaWeightNormalized * (maxConductance - minConductance);
+					//conductanceGp1 += deltaWeightNormalized * (maxConductance - minConductance) ;
+					if(conductanceGp1> maxConductance){
+						conductanceGp1 = maxConductance;
 					}
-					static_cast<eNVM*>(cell[x][y])->conductanceGp = conductanceGp;
+					static_cast<eNVM*>(cell[x][y])->conductanceGp1 = conductanceGp1;
+					/*Gp2 cell weight update*/
+					conductanceGp2 += deltaWeightNormalized * (maxConductance - minConductance);
+					//conductanceGp1 += deltaWeightNormalized * (maxConductance - minConductance) ;
+					if (conductanceGp2 > maxConductance) {
+						conductanceGp2 = maxConductance;
+					}
+					static_cast<eNVM*>(cell[x][y])->conductanceGp2 = conductanceGp2;
 				}
 				else {
 					conductanceGn += -deltaWeightNormalized * (maxConductance - minConductance)*2;
@@ -225,12 +236,12 @@ void Array::WriteCell(int x, int y, double deltaWeight, double maxWeight, double
 					}
 					static_cast<eNVM*>(cell[x][y])->conductanceGn = conductanceGn;
 				}
-				conductance = conductanceGp - conductanceGn + conductanceRef;
+				conductance = conductanceGp1 - conductanceGn + conductanceRef;
 				static_cast<eNVM*>(cell[x][y])->conductance = conductance;
 			}
 			//else {	// Preparation stage (ideal write)
 			//	double conductance = static_cast<eNVM*>(cell[x][y])->conductance;
-			//	double conductanceGp = static_cast<eNVM*>(cell[x][y])->conductanceGp;
+			//	double conductanceGp1 = static_cast<eNVM*>(cell[x][y])->conductanceGp1;
 			//	double conductanceGn = static_cast<eNVM*>(cell[x][y])->conductanceGn;
 			//	//double maxConductance = static_cast<eNVM*>(cell[x][y])->maxConductance- static_cast<eNVM*>(cell[x][y])->minConductance;
 			//	//double minConductance = static_cast<eNVM*>(cell[x][y])->minConductance- static_cast<eNVM*>(cell[x][y])->maxConductance;
@@ -238,22 +249,22 @@ void Array::WriteCell(int x, int y, double deltaWeight, double maxWeight, double
 			//	double minConductance = static_cast<eNVM*>(cell[x][y])->minConductance;
 			//	double conductanceRef = static_cast<eNVM*>(cell[x][y])->conductanceRef;
 			//	if (deltaWeightNormalized > 0) {
-			//		conductanceGp += deltaWeightNormalized * (maxConductance - minConductance);
-			//		//conductanceGp += deltaWeightNormalized * (maxConductance - minConductance) ;
-			//		if (conductanceGp > maxConductance) {
-			//			conductanceGp = maxConductance;
+			//		conductanceGp1 += deltaWeightNormalized * (maxConductance - minConductance);
+			//		//conductanceGp1 += deltaWeightNormalized * (maxConductance - minConductance) ;
+			//		if (conductanceGp1 > maxConductance) {
+			//			conductanceGp1 = maxConductance;
 			//		}
-			//		static_cast<eNVM*>(cell[x][y])->conductanceGp = conductanceGp;
+			//		static_cast<eNVM*>(cell[x][y])->conductanceGp1 = conductanceGp1;
 			//	}
 			//	else {
-			//		conductanceGp += deltaWeightNormalized * (maxConductance - minConductance) ;
+			//		conductanceGp1 += deltaWeightNormalized * (maxConductance - minConductance) ;
 			//		//conductanceGn += (-deltaWeightNormalized) * (maxConductance - minConductance);
-			//		if (conductanceGp < minConductance) {
-			//			conductanceGp = minConductance;
+			//		if (conductanceGp1 < minConductance) {
+			//			conductanceGp1 = minConductance;
 			//		}
-			//		static_cast<eNVM*>(cell[x][y])->conductanceGp = conductanceGp;
+			//		static_cast<eNVM*>(cell[x][y])->conductanceGp1 = conductanceGp1;
 			//	}
-			//	conductance = conductanceGp - conductanceGn + conductanceRef;
+			//	conductance = conductanceGp1 - conductanceGn + conductanceRef;
 			//	static_cast<eNVM*>(cell[x][y])->conductance = conductance;
 			//}
 		}
@@ -351,7 +362,8 @@ void Array::EraseCell(int x, int y, double maxWeight, double minWeight) {
 
 void Array::ReWriteCell(int x, int y, double deltaWeight, double maxWeight, double minWeight)
 {
-	static_cast<AnalogNVM*>(cell[x][y])->ReWrite(deltaWeight);
+	double deltaWeightNormalized = deltaWeight / (maxWeight - minWeight);
+	static_cast<AnalogNVM*>(cell[x][y])->ReWrite(deltaWeightNormalized);
 }
 
 

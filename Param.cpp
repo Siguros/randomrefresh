@@ -78,6 +78,8 @@ Param::Param() {
 	processNode = 14;	// Technology node (nm)
 	clkFreq = 2e9;		// Clock frequency (Hz)
 
-	numImageperRESET = 2;
+	ActRefdeviceIH = 0.1;
+	ActRefdeviceHO = 0.1;
+	numImageperRESET = 50;
 }
 
